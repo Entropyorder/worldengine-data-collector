@@ -1,6 +1,13 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+packages = []
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
 
 [project]
 name = "worldengine-control-center"

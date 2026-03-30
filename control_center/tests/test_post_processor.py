@@ -1,0 +1,79 @@
+import pytest
+from datetime import datetime
+from post_processor import compute_speeds, validate_frames, parse_frame_time
+
+class TestParseFrameTime:
+    def test_parses_milliseconds(self):
+        t = parse_frame_time("2026-03-30 14:30:22.033")
+        assert t == datetime(2026, 3, 30, 14, 30, 22, 33000)
+
+    def test_parses_zero_ms(self):
+        t = parse_frame_time("2026-03-30 00:00:00.000")
+        assert t == datetime(2026, 3, 30, 0, 0, 0, 0)
+
+
+class TestComputeSpeeds:
+    def _make_frame(self, time_str, cam_pos, player_pos, frame_idx=0):
+        return {
+            "frame": frame_idx,
+            "time": time_str,
+            "camera_position": cam_pos,
+            "player_position": player_pos,
+            "camera_speed": [0.0, 0.0, 0.0],
+            "player_speed": [0.0, 0.0, 0.0],
+        }
+
+    def test_first_frame_speed_is_zero(self):
+        frames = [self._make_frame("2026-03-30 00:00:00.000", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])]
+        result = compute_speeds(frames)
+        assert result[0]["camera_speed"] == [0.0, 0.0, 0.0]
+        assert result[0]["player_speed"] == [0.0, 0.0, 0.0]
+
+    def test_camera_speed_computed_correctly(self):
+        frames = [
+            self._make_frame("2026-03-30 00:00:00.000", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0),
+            self._make_frame("2026-03-30 00:00:00.033", [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], 1),
+        ]
+        result = compute_speeds(frames)
+        assert abs(result[1]["camera_speed"][0] - 1.0 / 0.033) < 0.01
+        assert result[1]["camera_speed"][1] == 0.0
+        assert result[1]["camera_speed"][2] == 0.0
+
+    def test_player_speed_computed_correctly(self):
+        frames = [
+            self._make_frame("2026-03-30 00:00:00.000", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0),
+            self._make_frame("2026-03-30 00:00:00.033", [0.0, 0.0, 0.0], [0.0, 0.0, 3.0], 1),
+        ]
+        result = compute_speeds(frames)
+        assert abs(result[1]["player_speed"][2] - 3.0 / 0.033) < 0.01
+
+    def test_zero_dt_returns_zero_speed(self):
+        frames = [
+            self._make_frame("2026-03-30 00:00:00.000", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0),
+            self._make_frame("2026-03-30 00:00:00.000", [1.0, 0.0, 0.0], [0.0, 0.0, 0.0], 1),
+        ]
+        result = compute_speeds(frames)
+        assert result[1]["camera_speed"] == [0.0, 0.0, 0.0]
+
+
+class TestValidateFrames:
+    def test_empty_returns_no_warnings(self):
+        warnings = validate_frames([])
+        assert warnings == []
+
+    def test_detects_gap_in_frame_index(self):
+        frames = [
+            {"frame": 0, "time": "2026-03-30 00:00:00.000"},
+            {"frame": 2, "time": "2026-03-30 00:00:00.033"},
+        ]
+        warnings = validate_frames(frames)
+        assert any("gap" in w.lower() or "frame 1" in w for w in warnings)
+
+    def test_contiguous_frames_no_warning(self):
+        frames = [
+            {"frame": 0, "time": "2026-03-30 00:00:00.000"},
+            {"frame": 1, "time": "2026-03-30 00:00:00.033"},
+            {"frame": 2, "time": "2026-03-30 00:00:00.066"},
+        ]
+        warnings = validate_frames(frames)
+        assert warnings == []
