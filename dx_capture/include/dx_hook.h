@@ -2,9 +2,11 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <functional>
+#include <vector>
+#include <cstdint>
 
-// Callback type: called every captured frame (every 2nd Present when recording)
-using FrameCapturedCallback = std::function<void(ID3D11Texture2D* stagingTex, UINT width, UINT height)>;
+// Callback receives pre-mapped BGRA pixel data (CPU copy)
+using FrameCapturedCallback = std::function<void(std::vector<uint8_t> pixels, UINT width, UINT height)>;
 
 class DxHook {
 public:
@@ -13,7 +15,6 @@ public:
 
     UINT Width()  const { return _width; }
     UINT Height() const { return _height; }
-    ID3D11DeviceContext* Context() const { return _context; }
 
 private:
     static HRESULT STDMETHODCALLTYPE PresentHook(
@@ -25,7 +26,6 @@ private:
 
     ID3D11Device*        _device        = nullptr;
     ID3D11DeviceContext* _context       = nullptr;
-    // Ring buffer of 3 staging textures to avoid blocking encoder thread
     static constexpr int POOL_SIZE = 3;
     ID3D11Texture2D*     _stagingPool[POOL_SIZE] = {};
     int                  _poolIdx       = 0;

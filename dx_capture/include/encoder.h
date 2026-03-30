@@ -5,23 +5,29 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
+#include <cstdint>
+
+struct EncodeJob {
+    std::vector<uint8_t> pixels;  // pre-mapped CPU copy
+    UINT width, height;
+};
 
 class Encoder {
 public:
-    bool Start(const std::string& outputMp4Path, UINT width, UINT height,
-               ID3D11DeviceContext* ctx, int fps = 30);
+    bool Start(const std::string& outputMp4Path, UINT width, UINT height, int fps = 30);
     void Stop();
-    void Submit(ID3D11Texture2D* stagingTex);  // context stored at Start() time
+    // Submit pre-copied pixel data (BGRA, row-major). Caller owns the move.
+    void Submit(std::vector<uint8_t> pixels, UINT w, UINT h);
 
 private:
     void EncoderThread();
 
     FILE* _ffmpegPipe = nullptr;
     std::thread _thread;
-    std::queue<ID3D11Texture2D*> _jobs;  // texture pointer only, context is stored
+    std::queue<EncodeJob> _jobs;
     std::mutex _mutex;
     std::condition_variable _cv;
     bool _running = false;
     UINT _width = 1920, _height = 1080;
-    ID3D11DeviceContext* _ctx = nullptr;  // stored at Start()
 };

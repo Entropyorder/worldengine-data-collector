@@ -4,6 +4,8 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <cassert>
+#include <vector>
+#include <cstdint>
 
 DxHook* DxHook::s_instance = nullptr;
 
@@ -124,8 +126,23 @@ HRESULT STDMETHODCALLTYPE DxHook::PresentHook(
         {
             self->_context->CopyResource(self->_stagingPool[idx], backBuf);
             backBuf->Release();
-            if (self->_onFrame)
-                self->_onFrame(self->_stagingPool[idx], self->_width, self->_height);
+
+            // Map, copy to CPU, Unmap — all on render thread (immediate context is not thread-safe)
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            if (SUCCEEDED(self->_context->Map(self->_stagingPool[idx], 0, D3D11_MAP_READ, 0, &mapped))) {
+                std::vector<uint8_t> pixels(self->_width * self->_height * 4);
+                const BYTE* src = static_cast<const BYTE*>(mapped.pData);
+                for (UINT row = 0; row < self->_height; row++) {
+                    memcpy(pixels.data() + row * self->_width * 4,
+                           src + row * mapped.RowPitch,
+                           self->_width * 4);
+                }
+                self->_context->Unmap(self->_stagingPool[idx], 0);
+
+                if (self->_onFrame)
+                    self->_onFrame(std::move(pixels), self->_width, self->_height);
+            }
+
             self->_poolIdx++;
         }
     }

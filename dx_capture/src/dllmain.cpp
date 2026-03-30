@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <atomic>
 #include "shared_mem.h"
 #include "dx_hook.h"
 #include "encoder.h"
@@ -11,6 +12,7 @@ static DxHook   g_hook;
 static Encoder  g_encoder;
 static Osd      g_osd;
 static bool     g_initialized = false;
+static HANDLE   g_initThread  = nullptr;  // stored for Shutdown sync
 
 static void Initialize()
 {
@@ -22,22 +24,33 @@ static void Initialize()
         return;
     }
 
-    g_hook.Install([](ID3D11Texture2D* tex, UINT w, UINT h) {
-        // Called every captured frame (30fps)
+    static std::atomic<bool> encoderStarted{false};
+
+    g_hook.Install([](std::vector<uint8_t> pixels, UINT w, UINT h) {
         SharedFrameSync* s = g_sharedMem.Get();
         if (!s || !s->capture_active) return;
 
-        // Start encoder if not running (lazy start on first captured frame)
-        static bool encoderStarted = false;
-        if (!encoderStarted) {
-            std::string outPath = std::string(s->output_path) + "\\video.mp4";
-            if (g_encoder.Start(outPath, w, h, g_hook.Context(), 30)) {
-                encoderStarted = true;
+        // Lazy-start encoder on first captured frame
+        bool expected = false;
+        if (!encoderStarted.load(std::memory_order_acquire)) {
+            if (encoderStarted.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+                // We won the race — start the encoder
+                // Null-terminate defensively before string conversion
+                char safePath[256];
+                strncpy_s(safePath, sizeof(safePath), s->output_path, _TRUNCATE);
+                std::string outPath = std::string(safePath) + "\\video.mp4";
+                if (!g_encoder.Start(outPath, w, h, 30)) {
+                    encoderStarted.store(false, std::memory_order_release);  // reset on failure
+                    OutputDebugStringA("[dx_capture] Encoder failed to start\n");
+                    return;
+                }
                 OutputDebugStringA("[dx_capture] Encoder started\n");
+            } else {
+                return;  // Another thread is starting encoder; drop this frame
             }
         }
 
-        g_encoder.Submit(tex);
+        g_encoder.Submit(std::move(pixels), w, h);
     });
 
     OutputDebugStringA("[dx_capture] Initialized OK\n");
@@ -45,6 +58,12 @@ static void Initialize()
 
 static void Shutdown()
 {
+    // Wait for init thread to complete before tearing down hook
+    if (g_initThread) {
+        WaitForSingleObject(g_initThread, 5000);
+        CloseHandle(g_initThread);
+        g_initThread = nullptr;
+    }
     g_hook.Remove();
     g_encoder.Stop();
     g_sharedMem.Destroy();
@@ -56,8 +75,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
     switch (reason) {
         case DLL_PROCESS_ATTACH:
             DisableThreadLibraryCalls(hModule);
-            // Use a new thread to avoid holding the loader lock
-            CreateThread(nullptr, 0,
+            g_initThread = CreateThread(nullptr, 0,
                 [](LPVOID) -> DWORD { Initialize(); return 0; },
                 nullptr, 0, nullptr);
             break;
