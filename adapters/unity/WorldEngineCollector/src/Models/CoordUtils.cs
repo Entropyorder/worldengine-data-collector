@@ -28,16 +28,18 @@ namespace WorldEngine.Models
 
         /// <summary>
         /// Compute camera intrinsic matrix parameters from Unity camera.
-        /// fx = fy = (width/2) / tan(fovRad/2), cx = width/2, cy = height/2
+        /// Unity camera.fieldOfView is vertical FOV, so fy = (height/2) / tan(fovRad/2).
+        /// fx = fy (isotropic: square pixels), cx = width/2, cy = height/2
         /// </summary>
         public static CameraIntrinsics CalcIntrinsics(float fovDeg, int width, int height)
         {
             float fovRad = fovDeg * Mathf.Deg2Rad;
-            float fx = (width / 2f) / Mathf.Tan(fovRad / 2f);
+            // Unity camera.fieldOfView is vertical FOV; use height for physically correct fy
+            float fy = (height / 2f) / Mathf.Tan(fovRad / 2f);
             return new CameraIntrinsics
             {
-                Fx = fx,
-                Fy = fx,
+                Fx = fy,   // isotropic: square pixels, fx = fy
+                Fy = fy,
                 Cx = width / 2f,
                 Cy = height / 2f,
             };

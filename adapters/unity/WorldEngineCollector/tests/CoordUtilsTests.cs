@@ -29,12 +29,12 @@ namespace WorldEngine.Tests
         [Test]
         public void CalcIntrinsics_1080p_60fov()
         {
-            // fov=60°, 1920x1080: fx = (960) / tan(30°) = 960 / 0.5774 ≈ 1662.77
+            // fov=60° vertical, 1920x1080: fy = (540) / tan(30°) = 540 / 0.5774 ≈ 935.31
             var intr = CoordUtils.CalcIntrinsics(60f, 1920, 1080);
             Assert.AreEqual(960f, intr.Cx, 0.01f);
             Assert.AreEqual(540f, intr.Cy, 0.01f);
             Assert.AreEqual(intr.Fx, intr.Fy, 0.01f);
-            Assert.AreEqual(1662.77f, intr.Fx, 1f);
+            Assert.AreEqual(935.31f, intr.Fx, 1f);
         }
 
         [Test]
