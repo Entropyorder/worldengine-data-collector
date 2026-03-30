@@ -1,0 +1,19 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(__file__))
+
+from PyQt6.QtWidgets import QApplication
+from gui.main_window import MainWindow
+
+
+def main() -> None:
+    app = QApplication(sys.argv)
+    app.setApplicationName("WorldEngine Data Collector")
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
