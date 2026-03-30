@@ -1,0 +1,5 @@
+output_dir: "C:/WorldEngineCaptures"
+ffmpeg_path: "ffmpeg"
+dx_capture_dll: "../adapters/bin/dx_capture.dll"
+hotkey_start_stop: "F9"
+max_session_minutes: 30
