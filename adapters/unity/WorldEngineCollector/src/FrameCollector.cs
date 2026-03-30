@@ -17,7 +17,8 @@ namespace WorldEngine
         public UIHider UIHider;
         public string PlayerObjectName = "Player(Clone)";
 
-        private long _captureFrameIndex = 0;  // local counter — NOT from shared mem (timing issue)
+        private long _captureFrameIndex = 0;  // counts emitted JSONL records (= video frames)
+        private long _lastSentFrameIndex = -1; // last SharedMem.FrameIndex we sent a record for
         private float _accMouseX;
         private float _accMouseY;
 
@@ -31,6 +32,12 @@ namespace WorldEngine
         private void LateUpdate()
         {
             if (SharedMem == null || !SharedMem.CaptureActive) return;
+
+            // Only emit a record when dx_capture has captured a new video frame.
+            // dx_capture hooks every 2nd Present, so FrameIndex advances every ~2 LateUpdates.
+            // Emitting on every LateUpdate would produce ~2x more JSONL records than video frames.
+            long currentFrameIndex = SharedMem.FrameIndex;
+            if (currentFrameIndex == _lastSentFrameIndex) return;
 
             var cam = Camera.main;
             if (cam == null) return;
@@ -75,6 +82,7 @@ namespace WorldEngine
             // Restore UI after Present completes (WaitForEndOfFrame coroutine)
             UIHider.ScheduleRestore();
 
+            _lastSentFrameIndex = currentFrameIndex;
             _captureFrameIndex++;
         }
 
