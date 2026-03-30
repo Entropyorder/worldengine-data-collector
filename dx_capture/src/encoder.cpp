@@ -1,4 +1,5 @@
 #include "encoder.h"
+#include <cctype>
 #include <cstdio>
 
 bool Encoder::Start(const std::string& outputPath, UINT width, UINT height, int fps)
@@ -6,9 +7,11 @@ bool Encoder::Start(const std::string& outputPath, UINT width, UINT height, int 
     _width  = width;
     _height = height;
 
-    // Sanitize path: reject if it contains double-quote or shell metacharacters
+    // Allowlist: permit only characters expected in a Windows absolute path
     for (char c : outputPath) {
-        if (c == '"' || c == '&' || c == '|' || c == ';' || c == '`') {
+        if (!isalnum(static_cast<unsigned char>(c)) &&
+            c != '_' && c != '-' && c != '.' && c != ':' &&
+            c != '\\' && c != '/' && c != ' ') {
             OutputDebugStringA("[dx_capture] Encoder::Start: invalid char in output path\n");
             return false;
         }
