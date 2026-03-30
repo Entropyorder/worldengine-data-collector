@@ -1,7 +1,10 @@
 from __future__ import annotations
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def parse_frame_time(time_str: str) -> datetime:
@@ -17,7 +20,7 @@ def compute_speeds(frames: list[dict]) -> list[dict]:
             frame["player_speed"] = [0.0, 0.0, 0.0]
             continue
 
-        dt = (parse_frame_time(frames[i]["time"]) - parse_frame_time(frames[i - 1]["time"])).total_seconds()
+        dt = (parse_frame_time(frame["time"]) - parse_frame_time(frames[i - 1]["time"])).total_seconds()
         if dt <= 0.0:
             frame["camera_speed"] = [0.0, 0.0, 0.0]
             frame["player_speed"] = [0.0, 0.0, 0.0]
@@ -47,10 +50,13 @@ def validate_frames(frames: list[dict]) -> list[str]:
     return warnings
 
 
-def process_session(session_dir: str) -> None:
+def process_session(session_dir: str | Path) -> None:
     """Read raw_frames.jsonl, compute speeds, validate, write action_camera.json and fps.json."""
     session_path = Path(session_dir)
     raw_path = session_path / "raw_frames.jsonl"
+
+    if not raw_path.exists():
+        raise FileNotFoundError(f"Session input not found: {raw_path}")
 
     frames: list[dict] = []
     fps_records: list[dict] = []
@@ -61,12 +67,13 @@ def process_session(session_dir: str) -> None:
             if not line:
                 continue
             record = json.loads(line)
-            fps_records.append({"time": record["time"], "fps": record.pop("_game_fps", 0.0)})
+            fps_records.append({"time": record["time"], "fps": record.get("_game_fps", 0.0)})
+            record.pop("_game_fps", None)
             frames.append(record)
 
     warnings = validate_frames(frames)
     for w in warnings:
-        print(f"[WARN] {w}")
+        logger.warning(w)
 
     frames = compute_speeds(frames)
 
@@ -79,5 +86,5 @@ def process_session(session_dir: str) -> None:
     with open(out_fps, "w", encoding="utf-8") as f:
         json.dump(fps_records, f, ensure_ascii=False, indent=2)
 
-    print(f"[OK] Processed {len(frames)} frames -> {out_action}")
-    print(f"[OK] FPS log -> {out_fps}")
+    logger.info("Processed %d frames -> %s", len(frames), out_action)
+    logger.info("FPS log -> %s", out_fps)

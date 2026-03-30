@@ -1,6 +1,7 @@
-import pytest
+import json
+from pathlib import Path
 from datetime import datetime
-from post_processor import compute_speeds, validate_frames, parse_frame_time
+from post_processor import compute_speeds, validate_frames, parse_frame_time, process_session
 
 class TestParseFrameTime:
     def test_parses_milliseconds(self):
@@ -77,3 +78,43 @@ class TestValidateFrames:
         ]
         warnings = validate_frames(frames)
         assert warnings == []
+
+
+class TestProcessSession:
+    def test_process_session_integration(self, tmp_path):
+        raw_path = tmp_path / "raw_frames.jsonl"
+        frame0 = {
+            "frame": 0,
+            "time": "2026-03-30 00:00:00.000",
+            "camera_position": [0.0, 0.0, 0.0],
+            "player_position": [0.0, 0.0, 0.0],
+            "_game_fps": 60.0,
+        }
+        frame1 = {
+            "frame": 1,
+            "time": "2026-03-30 00:00:00.033",
+            "camera_position": [1.0, 0.0, 0.0],
+            "player_position": [1.0, 0.0, 0.0],
+            "_game_fps": 59.5,
+        }
+        raw_path.write_text(
+            json.dumps(frame0) + "\n" + json.dumps(frame1) + "\n",
+            encoding="utf-8",
+        )
+
+        process_session(tmp_path)
+
+        action_path = tmp_path / "action_camera.json"
+        assert action_path.exists()
+        action_lines = [l for l in action_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        assert len(action_lines) == 2
+        for line in action_lines:
+            record = json.loads(line)
+            assert "_game_fps" not in record
+
+        fps_path = tmp_path / "fps.json"
+        assert fps_path.exists()
+        fps_records = json.loads(fps_path.read_text(encoding="utf-8"))
+        assert len(fps_records) == 2
+        assert fps_records[0]["fps"] == 60.0
+        assert fps_records[1]["fps"] == 59.5
