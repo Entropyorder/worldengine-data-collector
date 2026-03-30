@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 import threading
 from pathlib import Path
 
@@ -21,13 +22,15 @@ class FrameBuffer:
         return self._count
 
     def open(self) -> None:
-        self._file = open(self._output_path, "w", encoding="utf-8", buffering=1)
+        with self._lock:
+            self._file = open(self._output_path, "w", encoding="utf-8", buffering=1)
 
     def close(self) -> None:
-        if self._file:
-            self._file.flush()
-            self._file.close()
-            self._file = None
+        with self._lock:
+            if self._file:
+                self._file.flush()
+                self._file.close()
+                self._file = None
 
     def ingest(self, line: str) -> None:
         """Parse one JSON line and write to disk. Raises json.JSONDecodeError on bad input."""
@@ -38,7 +41,7 @@ class FrameBuffer:
         with self._lock:
             if self._file:
                 self._file.write(json.dumps(record, ensure_ascii=False) + "\n")
-            self._count += 1
+                self._count += 1
 
 
 class PipeServer:
@@ -111,7 +114,6 @@ class PipeServer:
                     try:
                         self._buffer.ingest(raw.decode("utf-8") + "\n")
                     except Exception as e:
-                        import logging
                         logging.getLogger(__name__).error("PipeServer ingest error: %s", e)
         finally:
             kernel32.CloseHandle(handle)

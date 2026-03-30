@@ -1,7 +1,9 @@
 from __future__ import annotations
 import json
+import logging
 import math
 import platform
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -64,9 +66,10 @@ def get_process_title(process_name: str) -> str:
     if platform.system() != "Windows":
         return process_name
     try:
+        safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "", process_name)
         out = subprocess.check_output(
             ["powershell", "-Command",
-             f"(Get-Process '{process_name}' | Select-Object -First 1).MainWindowTitle"],
+             f"(Get-Process -Name '{safe_name}' | Select-Object -First 1).MainWindowTitle"],
             text=True, timeout=5
         ).strip()
         return out if out else process_name
@@ -114,11 +117,18 @@ def build_game_meta_dict(
 
     key_rules = "; ".join(str(v) for v in key_map.values()) if key_map else "未配置"
 
+    perspective = detect_perspective(sample_offsets)
+    avg_dist = _avg_offset_distance(sample_offsets)
+    if perspective == "第一人称":
+        cam_desc = f"第一人称，眼睛高度约 {avg_dist:.1f}m"
+    else:
+        cam_desc = f"第三人称跟随，典型偏移距离约 {avg_dist:.1f}m"
+
     return {
         "游戏类型描述": meta_cfg.get("game_type_description", ""),
-        "视角配置": meta_cfg.get("perspective", detect_perspective(sample_offsets)),
+        "视角配置": meta_cfg.get("perspective", perspective),
         "相机位置是否固定": "否",
-        "相机位置描述": f"第三人称跟随，典型偏移距离约 {_avg_offset_distance(sample_offsets):.1f}m",
+        "相机位置描述": cam_desc,
         "画面分辨率": f"{width}x{height}",
         "键盘映射规则": key_rules,
         "鼠标对应规则": mouse_cfg.get("description", ""),
@@ -180,5 +190,4 @@ def collect_and_write(
     meta_dict = build_game_meta_dict(game_cfg, sample_offsets, width, height)
     write_game_meta_xlsx(meta_dict, session_path / "game_meta.xlsx")
 
-    import logging
     logging.getLogger(__name__).info("Metadata written to %s", session_path)

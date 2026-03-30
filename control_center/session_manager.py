@@ -17,11 +17,16 @@ class SessionManager:
     """
 
     def __init__(self, settings_path: str = "config/settings.yaml") -> None:
-        with open(settings_path, encoding="utf-8") as f:
-            self._settings = yaml.safe_load(f)
+        self._settings_path = settings_path
+        self._settings: dict = {}
         self._state = SessionState.IDLE
         self._session_dir: Path | None = None
         self._game_config: dict = {}
+
+    def _ensure_settings(self) -> None:
+        if not self._settings:
+            with open(self._settings_path, encoding="utf-8") as f:
+                self._settings = yaml.safe_load(f)
 
     @property
     def state(self) -> SessionState:
@@ -36,8 +41,11 @@ class SessionManager:
             self._game_config = yaml.safe_load(f)
 
     def start_session(self) -> Path:
-        assert self._state == SessionState.IDLE, "Already in a session"
-        assert self._game_config, "Call load_game() first"
+        if self._state != SessionState.IDLE:
+            raise RuntimeError("Already in a session")
+        if not self._game_config:
+            raise RuntimeError("Call load_game() first")
+        self._ensure_settings()
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         name = self._game_config["process_name"]
@@ -50,9 +58,11 @@ class SessionManager:
         return self._session_dir
 
     def stop_session(self) -> None:
-        assert self._state == SessionState.RECORDING
+        if self._state != SessionState.RECORDING:
+            raise RuntimeError("stop_session called when not recording")
         self._state = SessionState.PROCESSING
 
     def finish_processing(self) -> None:
-        assert self._state == SessionState.PROCESSING
+        if self._state != SessionState.PROCESSING:
+            raise RuntimeError("finish_processing called when not processing")
         self._state = SessionState.IDLE
