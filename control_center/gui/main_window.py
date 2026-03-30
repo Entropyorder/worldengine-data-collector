@@ -109,16 +109,32 @@ class MainWindow(QMainWindow):
     def _start_recording(self) -> None:
         yaml_path = self._game_combo.currentData()
         if not yaml_path:
+            self._signals.log.emit("[WARN] 未选择游戏，请先选择游戏配置")
             return
-        self._sm.load_game(yaml_path)
-        session_dir = self._sm.start_session()
+        try:
+            self._sm.load_game(yaml_path)
+            session_dir = self._sm.start_session()
 
-        raw_path = session_dir / "raw_frames.jsonl"
-        self._frame_buffer = FrameBuffer(str(raw_path))
-        self._frame_buffer.open()
+            raw_path = session_dir / "raw_frames.jsonl"
+            self._frame_buffer = FrameBuffer(str(raw_path))
+            self._frame_buffer.open()
 
-        self._pipe_server = PipeServer(self._frame_buffer)
-        self._pipe_server.start()
+            self._pipe_server = PipeServer(self._frame_buffer)
+            self._pipe_server.start()
+        except Exception as e:
+            # Clean up any resources that were opened before the failure
+            if self._frame_buffer:
+                self._frame_buffer.close()
+                self._frame_buffer = None
+            if self._pipe_server:
+                self._pipe_server.stop()
+                self._pipe_server = None
+            # Reset FSM if session was started
+            if self._sm.state == SessionState.RECORDING:
+                self._sm.stop_session()
+                self._sm.finish_processing()
+            self._signals.log.emit(f"[ERROR] 录制启动失败: {e}")
+            return
 
         if self._osd.open():
             self._osd.set_session(session_dir.name, str(session_dir))
@@ -136,8 +152,10 @@ class MainWindow(QMainWindow):
     def _stop_recording(self) -> None:
         self._osd.set_capture_active(False)
         self._osd.close()
-        self._pipe_server.stop()
-        self._frame_buffer.close()
+        if self._pipe_server:
+            self._pipe_server.stop()
+        if self._frame_buffer:
+            self._frame_buffer.close()
         self._timer.stop()
         self._sm.stop_session()
         self._btn_start.setText("处理中…")
@@ -169,7 +187,7 @@ class MainWindow(QMainWindow):
         if not self._frame_buffer or not self._start_time:
             return
         frames = self._frame_buffer.frame_count
-        fps = self._osd.read_game_fps() if self._osd._view else 0.0
+        fps = self._osd.read_game_fps() if self._osd.is_open else 0.0
         elapsed = datetime.now() - self._start_time
         mins, secs = divmod(int(elapsed.total_seconds()), 60)
         self._signals.stats_updated.emit(frames, fps, f"{mins:02d}:{secs:02d}")
@@ -187,3 +205,8 @@ class MainWindow(QMainWindow):
         self._lbl_frames.setText(f"帧数: {frames}")
         self._lbl_fps.setText(f"游戏FPS: {fps:.1f}")
         self._lbl_time.setText(f"时长: {elapsed}")
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._sm.state == SessionState.RECORDING:
+            self._stop_recording()
+        event.accept()

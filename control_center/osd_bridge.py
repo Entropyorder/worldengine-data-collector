@@ -79,6 +79,10 @@ class OsdBridge:
         ctypes.memmove(ctypes.addressof(val), self._view + OFFSET_GAME_FPS, 4)
         return val.value
 
+    @property
+    def is_open(self) -> bool:
+        return self._view is not None
+
     def read_frame_index(self) -> int:
         if not self._view:
             return 0
