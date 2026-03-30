@@ -49,3 +49,6 @@ class TestBuildGameMetaDict:
         assert result["视角配置"] == "第三人称"
         assert result["画面分辨率"] == "1920x1080"
         assert "键盘映射规则" in result
+        assert "相机位置是否固定" in result
+        assert "相机位置描述" in result
+        assert "鼠标对应规则" in result
