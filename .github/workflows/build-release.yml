@@ -24,10 +24,14 @@ jobs:
           $url = "https://github.com/TsudaKageyu/minhook/releases/download/v1.3.3/MinHook_133_lib.zip"
           Invoke-WebRequest $url -OutFile minhook.zip
           Expand-Archive minhook.zip -DestinationPath C:\minhook_raw
+          Write-Host "MinHook zip contents:"; Get-ChildItem C:\minhook_raw -Recurse | Select-Object FullName
           New-Item -ItemType Directory -Force C:\libs\minhook\include | Out-Null
           New-Item -ItemType Directory -Force C:\libs\minhook\lib     | Out-Null
-          Copy-Item C:\minhook_raw\include\MinHook.h             C:\libs\minhook\include\
-          Copy-Item "C:\minhook_raw\lib\VC16\x64\MinHook.x64.lib" C:\libs\minhook\lib\
+          Copy-Item C:\minhook_raw\include\MinHook.h C:\libs\minhook\include\
+          $lib = Get-ChildItem C:\minhook_raw -Recurse -Filter "MinHook.x64.lib" | Select-Object -First 1
+          if (-not $lib) { Write-Error "MinHook.x64.lib not found in zip"; exit 1 }
+          Write-Host "Found lib at: $($lib.FullName)"
+          Copy-Item $lib.FullName C:\libs\minhook\lib\
 
       - name: Download FFmpeg 7.x GPL shared win64
         shell: pwsh
