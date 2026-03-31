@@ -14,7 +14,8 @@ from PyQt6.QtGui import QKeySequence, QShortcut
 
 from gui.session_log import SessionLog
 from session_manager import SessionManager, SessionState
-from pipe_reader import FrameBuffer, PipeServer
+from pipe_reader import FrameBuffer, TransportServer
+from installer import is_valid_game_path
 from osd_bridge import OsdBridge
 from post_processor import process_session
 from metadata_collector import collect_and_write
@@ -37,7 +38,7 @@ class MainWindow(QMainWindow):
         self._sm = sm if sm is not None else SessionManager(str(self.SETTINGS_PATH))
         self._osd = OsdBridge()
         self._frame_buffer: FrameBuffer | None = None
-        self._pipe_server: PipeServer | None = None
+        self._transport_server: TransportServer | None = None
         self._signals = _Signals()
         self._signals.log.connect(self._on_log)
         self._signals.stats_updated.connect(self._on_stats)
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu_bar()
         self._load_game_list()
+        self._update_start_state()
         self._timer = QTimer(self)
         self._timer.setInterval(500)
         self._timer.timeout.connect(self._poll_stats)
@@ -65,7 +67,12 @@ class MainWindow(QMainWindow):
         game_row.addWidget(QLabel("游戏:"))
         self._game_combo = QComboBox()
         self._game_combo.setMinimumWidth(200)
+        self._game_combo.currentIndexChanged.connect(self._update_start_state)
         game_row.addWidget(self._game_combo)
+        self._btn_setup = QPushButton("⚙ 配置")
+        self._btn_setup.setFixedWidth(72)
+        self._btn_setup.clicked.connect(self._open_setup_dialog)
+        game_row.addWidget(self._btn_setup)
         game_row.addStretch()
         layout.addLayout(game_row)
 
@@ -102,6 +109,38 @@ class MainWindow(QMainWindow):
                 cfg = yaml.safe_load(f)
             self._game_combo.addItem(cfg.get("game_name", yaml_file.stem), str(yaml_file))
 
+    def _update_start_state(self) -> None:
+        """Enable Start only when the selected game has a valid stored install path."""
+        if self._sm.state != SessionState.IDLE:
+            return
+        yaml_path = self._game_combo.currentData()
+        if not yaml_path:
+            self._btn_start.setEnabled(False)
+            return
+        with open(yaml_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        process_name = cfg.get("process_name", "")
+        stored = self._sm.get_game_install_path(process_name)
+        if stored and is_valid_game_path(cfg, Path(stored)):
+            self._btn_start.setEnabled(True)
+            self._lbl_status.setText("待机")
+            self._lbl_status.setStyleSheet("color: gray; font-weight: bold;")
+        else:
+            self._btn_start.setEnabled(False)
+            self._lbl_status.setText("需要配置游戏路径")
+            self._lbl_status.setStyleSheet("color: orange; font-weight: bold;")
+
+    def _open_setup_dialog(self) -> None:
+        yaml_path = self._game_combo.currentData()
+        if not yaml_path:
+            return
+        with open(yaml_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        from gui.game_setup_dialog import GameSetupDialog
+        dlg = GameSetupDialog(game_config=cfg, sm=self._sm, parent=self)
+        dlg.exec()
+        self._update_start_state()  # re-check after setup
+
     def _toggle_recording(self) -> None:
         if self._sm.state == SessionState.IDLE:
             self._start_recording()
@@ -121,16 +160,17 @@ class MainWindow(QMainWindow):
             self._frame_buffer = FrameBuffer(str(raw_path))
             self._frame_buffer.open()
 
-            self._pipe_server = PipeServer(self._frame_buffer)
-            self._pipe_server.start()
+            transport_server = self._sm.make_transport_server(self._frame_buffer)
+            self._transport_server = transport_server
+            transport_server.start()
         except Exception as e:
             # Clean up any resources that were opened before the failure
             if self._frame_buffer:
                 self._frame_buffer.close()
                 self._frame_buffer = None
-            if self._pipe_server:
-                self._pipe_server.stop()
-                self._pipe_server = None
+            if self._transport_server:
+                self._transport_server.stop()
+                self._transport_server = None
             # Reset FSM if session was started
             if self._sm.state == SessionState.RECORDING:
                 self._sm.stop_session()
@@ -154,8 +194,9 @@ class MainWindow(QMainWindow):
     def _stop_recording(self) -> None:
         self._osd.set_capture_active(False)
         self._osd.close()
-        if self._pipe_server:
-            self._pipe_server.stop()
+        if self._transport_server:
+            self._transport_server.stop()
+            self._transport_server = None
         if self._frame_buffer:
             self._frame_buffer.close()
         self._timer.stop()
@@ -202,9 +243,7 @@ class MainWindow(QMainWindow):
     def _on_stats(self, frames: int, fps: float, elapsed: str) -> None:
         if self._sm.state == SessionState.IDLE:
             self._btn_start.setText("开始录制 (F9)")
-            self._btn_start.setEnabled(True)
-            self._lbl_status.setText("待机")
-            self._lbl_status.setStyleSheet("color: gray; font-weight: bold;")
+            self._update_start_state()  # re-evaluate configured state
             return
         self._lbl_frames.setText(f"帧数: {frames}")
         self._lbl_fps.setText(f"游戏FPS: {fps:.1f}")
@@ -222,14 +261,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(reinstall_action)
 
     def _run_reinstall(self) -> None:
-        from gui.setup_wizard import SetupWizard
-        wizard = SetupWizard(self)
-        wizard.exec()
-        if wizard.valheim_path:
-            self._sm.save_valheim_path(wizard.valheim_path)
-            self._signals.log.emit(
-                f"[安装] Valheim 路径已更新: {wizard.valheim_path}"
-            )
+        self._open_setup_dialog()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self._sm.state == SessionState.RECORDING:
