@@ -5,5 +5,6 @@
     <AssemblyName>UnityEngine</AssemblyName>
     <RootNamespace>UnityEngine</RootNamespace>
     <OutputPath>bin\</OutputPath>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 </Project>

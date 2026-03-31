@@ -4,6 +4,7 @@
     <AssemblyName>BepInEx</AssemblyName>
     <RootNamespace>BepInEx</RootNamespace>
     <OutputPath>bin\</OutputPath>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
