@@ -53,7 +53,11 @@ namespace UnityEngine
     public class Canvas : Behaviour { }
 
     public struct Vector3 { public float x, y, z; }
-    public struct Quaternion { public float x, y, z, w; }
+    public struct Quaternion
+    {
+        public float x, y, z, w;
+        public Vector3 eulerAngles { get; set; }
+    }
 
     public static class Screen
     {

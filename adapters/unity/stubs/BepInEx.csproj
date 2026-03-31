@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net46</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>BepInEx</AssemblyName>
     <RootNamespace>BepInEx</RootNamespace>
     <OutputPath>bin\</OutputPath>
