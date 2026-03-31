@@ -33,7 +33,7 @@ def main() -> None:
     sm = SessionManager(SETTINGS_PATH)
     _run_setup_wizard_if_needed(app, sm)
 
-    window = MainWindow()
+    window = MainWindow(sm=sm)
     window.show()
     sys.exit(app.exec())
 

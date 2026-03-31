@@ -29,12 +29,12 @@ class MainWindow(QMainWindow):
     GAMES_CONFIG_DIR = Path(__file__).parent.parent / "config" / "games"
     SETTINGS_PATH    = Path(__file__).parent.parent / "config" / "settings.yaml"
 
-    def __init__(self) -> None:
+    def __init__(self, sm: SessionManager | None = None) -> None:
         super().__init__()
         self.setWindowTitle("WorldEngine Data Collector")
         self.setMinimumSize(640, 480)
 
-        self._sm = SessionManager(str(self.SETTINGS_PATH))
+        self._sm = sm if sm is not None else SessionManager(str(self.SETTINGS_PATH))
         self._osd = OsdBridge()
         self._frame_buffer: FrameBuffer | None = None
         self._pipe_server: PipeServer | None = None
@@ -42,6 +42,7 @@ class MainWindow(QMainWindow):
         self._signals.log.connect(self._on_log)
         self._signals.stats_updated.connect(self._on_stats)
         self._start_time: datetime | None = None
+        self._process_thread: threading.Thread | None = None
 
         self._build_ui()
         self._build_menu_bar()
@@ -134,7 +135,7 @@ class MainWindow(QMainWindow):
             if self._sm.state == SessionState.RECORDING:
                 self._sm.stop_session()
                 self._sm.finish_processing()
-            self._signals.log.emit(f"[ERROR] 录制启动失败: {e}")
+            self._signals.log.emit(f"[ERROR] 录制启动失败: {type(e).__name__}: {e}")
             return
 
         if self._osd.open():
@@ -182,7 +183,9 @@ class MainWindow(QMainWindow):
                 self._sm.finish_processing()
                 self._signals.stats_updated.emit(0, 0.0, "00:00")
 
-        threading.Thread(target=_process, daemon=True).start()
+        t = threading.Thread(target=_process, daemon=False)
+        self._process_thread = t
+        t.start()
 
     def _poll_stats(self) -> None:
         if not self._frame_buffer or not self._start_time:
@@ -231,4 +234,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self._sm.state == SessionState.RECORDING:
             self._stop_recording()
+        if self._process_thread and self._process_thread.is_alive():
+            self._process_thread.join(timeout=30)
         event.accept()
