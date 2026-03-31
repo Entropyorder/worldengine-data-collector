@@ -12,6 +12,8 @@ FetchContent_Declare(
     GIT_TAG        10.2.1
 )
 FetchContent_MakeAvailable(fmt)
+# Tell find_package(fmt) where the generated fmtConfig.cmake lives
+set(fmt_DIR "${fmt_BINARY_DIR}" CACHE PATH "" FORCE)
 
 # ── CommonLibSSE-NG (SKSE API headers + implementation) ───────────────────────
 FetchContent_Declare(
