@@ -144,6 +144,7 @@ jobs:
             "--name WorldEngineDataCollector " +
             "--collect-all PyQt6 " +
             "--add-data `"control_center/gui;gui`" " +
+            "--add-data `"control_center/config;config`" " +
             "--paths control_center " +
             $binaryFlags + " " +
             "control_center/main.py"
