@@ -128,3 +128,84 @@ class PipeServer(TransportServer):
                         logging.getLogger(__name__).error("PipeServer ingest error: %s", e)
         finally:
             kernel32.CloseHandle(handle)
+
+
+class TCPServer(TransportServer):
+    """
+    Listens on localhost:port, accepts one client, reads JSON lines into FrameBuffer.
+    Uses non-blocking I/O + select so it never blocks the calling thread.
+    Designed for adapters that cannot use Windows Named Pipes (e.g. CET Lua, SKSE C++).
+    """
+
+    def __init__(self, frame_buffer: FrameBuffer, port: int = 27015) -> None:
+        self._buffer = frame_buffer
+        self._port = port
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+
+    def start(self) -> None:
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True, name="TCPServer")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=3.0)
+
+    def _run(self) -> None:
+        import socket
+        import select
+
+        log = logging.getLogger(__name__)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", self._port))
+        server.listen(1)
+        server.setblocking(False)
+        client: socket.socket | None = None
+        leftover = b""
+
+        try:
+            while not self._stop_event.is_set():
+                if client is None:
+                    r, _, _ = select.select([server], [], [], 0.05)
+                    if r:
+                        client, addr = server.accept()
+                        client.setblocking(False)
+                        leftover = b""
+                        log.info("TCPServer: client connected from %s", addr)
+                    continue
+
+                r, _, _ = select.select([client], [], [], 0.05)
+                if not r:
+                    continue
+
+                try:
+                    data = client.recv(65536)
+                except OSError as exc:
+                    log.warning("TCPServer recv error: %s", exc)
+                    client.close()
+                    client = None
+                    continue
+
+                if not data:
+                    log.info("TCPServer: client disconnected")
+                    client.close()
+                    client = None
+                    continue
+
+                chunk = leftover + data
+                *lines, leftover = chunk.split(b"\n")
+                for raw in lines:
+                    decoded = raw.decode("utf-8", errors="replace").strip()
+                    if not decoded:
+                        continue
+                    try:
+                        self._buffer.ingest(decoded + "\n")
+                    except Exception as exc:
+                        log.error("TCPServer ingest error: %s", exc)
+        finally:
+            if client:
+                client.close()
+            server.close()
