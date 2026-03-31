@@ -3,6 +3,12 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include "FrameCollector.h"
 
+SKSEPluginInfo(
+    .Version = REL::Version{ 1, 0, 0, 0 },
+    .Name    = "WorldEngineCollector",
+    .Author  = "WorldEngine",
+)
+
 namespace {
 
 void OnMessage(SKSE::MessagingInterface::Message* msg) {
