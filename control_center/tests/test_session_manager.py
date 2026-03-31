@@ -169,3 +169,14 @@ def test_save_game_install_path_does_not_overwrite_other_games(tmp_path):
     sm.save_game_install_path("Cyberpunk2077", "/games/cp")
     assert sm.get_game_install_path("valheim") == "/games/valheim"
     assert sm.get_game_install_path("SkyrimSE") == "/games/skyrim"
+
+
+def test_get_game_install_path_returns_none_for_unknown_game(tmp_path):
+    import yaml
+    settings = {"output_dir": str(tmp_path / "out"), "ffmpeg_path": "ffmpeg"}
+    sp = tmp_path / "settings.yaml"
+    sp.write_text(yaml.dump(settings), encoding="utf-8")
+    from session_manager import SessionManager
+    sm = SessionManager(str(sp))
+    assert sm.get_game_install_path("SkyrimSE") is None
+    assert sm.get_game_install_path("Cyberpunk2077") is None

@@ -76,7 +76,7 @@ class SessionManager:
     def get_valheim_path(self) -> str | None:
         """Returns the stored Valheim installation path, or None if not configured."""
         self._ensure_settings()
-        return self._settings.get("valheim_path") or None
+        return self._settings.get("valheim_path")
 
     def save_valheim_path(self, path: str) -> None:
         """Persists the Valheim installation path to settings.yaml."""
@@ -94,7 +94,7 @@ class SessionManager:
         result = self._settings.get("game_install_paths", {}).get(process_name)
         if result is None and process_name == "valheim":
             result = self._settings.get("valheim_path")
-        return result or None
+        return result
 
     def save_game_install_path(self, process_name: str, path: str) -> None:
         """Persists the install path for a game to settings.yaml."""
