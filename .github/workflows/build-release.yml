@@ -110,8 +110,17 @@ jobs:
       - name: Build single EXE with PyInstaller
         shell: pwsh
         run: |
-          # Build list of --add-binary flags for all DLLs
-          $dllFlags = (Get-ChildItem bundle_dlls -Filter *.dll |
+          # Validate required DLLs are present before packaging
+          $required = @("dx_capture.dll", "WorldEngineCollector.dll")
+          foreach ($dll in $required) {
+            if (-not (Test-Path "bundle_dlls\$dll")) {
+              Write-Error "Required DLL missing: bundle_dlls\$dll"
+              exit 1
+            }
+          }
+
+          # Build --add-binary flags for every DLL in bundle_dlls/
+          $binaryFlags = (Get-ChildItem bundle_dlls -Filter *.dll |
             ForEach-Object { "--add-binary `"bundle_dlls\$($_.Name);.`"" }) -join " "
 
           $cmd = "pyinstaller " +
@@ -120,11 +129,18 @@ jobs:
             "--collect-all PyQt6 " +
             "--add-data `"control_center/gui;gui`" " +
             "--paths control_center " +
-            $dllFlags + " " +
+            $binaryFlags + " " +
             "control_center/main.py"
 
-          Write-Host "Running: $cmd"
+          Write-Host "PyInstaller command: $cmd"
           Invoke-Expression $cmd
+
+          # Confirm output
+          if (-not (Test-Path "dist\WorldEngineDataCollector.exe")) {
+            Write-Error "EXE not produced"
+            exit 1
+          }
+          Write-Host "EXE size: $((Get-Item 'dist\WorldEngineDataCollector.exe').Length / 1MB) MB"
 
       # ── 5. Upload artifact ────────────────────────────────────────────────
       - name: Upload EXE artifact
