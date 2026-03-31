@@ -56,7 +56,7 @@ class SessionManager:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         name = self._game_config["process_name"]
         dir_name = f"session_{ts}_{name}"
-        output_root = Path(self._settings["output_dir"])
+        output_root = Path(self._settings.get("output_dir", "sessions"))
         self._session_dir = output_root / dir_name
         self._session_dir.mkdir(parents=True, exist_ok=True)
 
