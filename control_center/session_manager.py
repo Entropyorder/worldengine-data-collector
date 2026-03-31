@@ -66,3 +66,15 @@ class SessionManager:
         if self._state != SessionState.PROCESSING:
             raise RuntimeError("finish_processing called when not processing")
         self._state = SessionState.IDLE
+
+    def get_valheim_path(self) -> str | None:
+        """Returns the stored Valheim installation path, or None if not configured."""
+        self._ensure_settings()
+        return self._settings.get("valheim_path") or None
+
+    def save_valheim_path(self, path: str) -> None:
+        """Persists the Valheim installation path to settings.yaml."""
+        self._ensure_settings()
+        self._settings["valheim_path"] = path
+        with open(self._settings_path, "w", encoding="utf-8") as f:
+            yaml.dump(self._settings, f, allow_unicode=True)
