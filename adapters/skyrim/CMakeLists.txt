@@ -4,8 +4,16 @@ project(WorldEngineCollector_Skyrim VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ── CommonLibSSE-NG (SKSE API headers + implementation) ───────────────────────
+# ── fmt (required by CommonLibSSE-NG) ─────────────────────────────────────────
 include(FetchContent)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG        10.2.1
+)
+FetchContent_MakeAvailable(fmt)
+
+# ── CommonLibSSE-NG (SKSE API headers + implementation) ───────────────────────
 FetchContent_Declare(
     CommonLibSSE
     GIT_REPOSITORY https://github.com/CharmedBaryon/CommonLibSSE-NG.git
