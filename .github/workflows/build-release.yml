@@ -73,7 +73,7 @@ jobs:
           CI: "true"
         run: |
           $plugin = "adapters\unity\WorldEngineCollector"
-          $stubs  = (Resolve-Path "adapters\unity\stubs\bin").Path
+          $stubs  = (Resolve-Path "adapters\unity\stubs\bin\Release\net46").Path
           dotnet build "$plugin\WorldEngineCollector.csproj" `
             -c Release --nologo `
             /p:CI=true `

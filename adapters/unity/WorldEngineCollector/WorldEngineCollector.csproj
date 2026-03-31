@@ -4,6 +4,7 @@
     <AssemblyName>WorldEngineCollector</AssemblyName>
     <RootNamespace>WorldEngine</RootNamespace>
     <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
 
     <!-- ── Local dev paths (default to Steam installation) ────────────────── -->
     <BepInExDir Condition="'$(BepInExDir)' == ''">C:\Steam\steamapps\common\Valheim\BepInEx\core</BepInExDir>
