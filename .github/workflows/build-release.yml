@@ -77,6 +77,19 @@ jobs:
             -c Release --nologo `
             /p:CI=true
 
+      # ── 3b. Build WorldEngineCollector_Skyrim.dll (SKSE plugin) ──────────────
+      - name: Build WorldEngineCollector_Skyrim.dll
+        shell: pwsh
+        run: |
+          cmake -B build_skyrim -S adapters/skyrim -A x64
+          cmake --build build_skyrim --config Release
+          $dll = "build_skyrim\Release\WorldEngineCollector.dll"
+          if (-not (Test-Path $dll)) {
+            Write-Error "Skyrim DLL not produced at $dll"; exit 1
+          }
+          Copy-Item $dll adapters\bin\WorldEngineCollector_Skyrim.dll
+          Write-Host "Skyrim DLL built OK"
+
       # ── 4. Package everything as a single Windows EXE (PyInstaller) ───────
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -152,9 +165,45 @@ jobs:
           name: WorldEngineDataCollector
           path: dist\WorldEngineDataCollector.exe
 
+      # ── 7. Package Cyberpunk 2077 CET mod ────────────────────────────────────
+      - name: Package Cyberpunk 2077 CET mod
+        shell: pwsh
+        run: |
+          $modDir = "dist_cp2077\bin\x64\plugins\cyber_engine_tweaks\mods\WorldEngineCollector"
+          New-Item -ItemType Directory -Force $modDir | Out-Null
+          Copy-Item adapters\cyberpunk\WorldEngineCollector\metadata.json $modDir\
+          Copy-Item adapters\cyberpunk\WorldEngineCollector\init.lua      $modDir\
+          Compress-Archive -Path dist_cp2077\* -DestinationPath dist\WorldEngineCollector_CP2077.zip
+          Write-Host "CP2077 mod packaged"
+
+      - name: Upload CP2077 mod artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldEngineCollector_CP2077
+          path: dist\WorldEngineCollector_CP2077.zip
+
+      # ── 8. Package Skyrim SKSE plugin ─────────────────────────────────────────
+      - name: Package Skyrim SKSE plugin
+        shell: pwsh
+        run: |
+          $pluginDir = "dist_skyrim\Data\SKSE\Plugins"
+          New-Item -ItemType Directory -Force $pluginDir | Out-Null
+          Copy-Item adapters\bin\WorldEngineCollector_Skyrim.dll $pluginDir\
+          Compress-Archive -Path dist_skyrim\* -DestinationPath dist\WorldEngineCollector_Skyrim.zip
+          Write-Host "Skyrim plugin packaged"
+
+      - name: Upload Skyrim plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldEngineCollector_Skyrim
+          path: dist\WorldEngineCollector_Skyrim.zip
+
       # ── 6. Attach to GitHub Release (only on release events) ─────────────
       - name: Attach to GitHub Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist\WorldEngineDataCollector.exe
+          files: |
+            dist\WorldEngineDataCollector.exe
+            dist\WorldEngineCollector_CP2077.zip
+            dist\WorldEngineCollector_Skyrim.zip
