@@ -3,6 +3,17 @@ import json
 import logging
 import threading
 from pathlib import Path
+from abc import ABC, abstractmethod
+
+
+class TransportServer(ABC):
+    """Abstract base: a server that reads lines into a FrameBuffer."""
+
+    @abstractmethod
+    def start(self) -> None: ...
+
+    @abstractmethod
+    def stop(self) -> None: ...
 
 
 class FrameBuffer:
@@ -44,7 +55,7 @@ class FrameBuffer:
                 self._count += 1
 
 
-class PipeServer:
+class PipeServer(TransportServer):
     """
     Opens a Windows Named Pipe server and reads lines into a FrameBuffer.
     Runs on a background daemon thread.
