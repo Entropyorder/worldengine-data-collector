@@ -9,7 +9,7 @@ include(FetchContent)
 FetchContent_Declare(
     CommonLibSSE
     GIT_REPOSITORY https://github.com/CharmedBaryon/CommonLibSSE-NG.git
-    GIT_TAG        v3.8.0
+    GIT_TAG        v3.7.0
 )
 set(SKSE_SUPPORT_XBYAK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(CommonLibSSE)
