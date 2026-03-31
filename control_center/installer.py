@@ -56,6 +56,9 @@ def is_valid_game_path(game_config: dict, path: Path) -> bool:
     if not path.is_dir():
         return False
     process_name = game_config.get("process_name", "")
+    if not process_name:
+        logger.warning("is_valid_game_path: missing process_name in game_config")
+        return False
     adapter_type = game_config.get("adapter_type", "")
     exe = path / f"{process_name}.exe"
 
@@ -66,8 +69,11 @@ def is_valid_game_path(game_config: dict, path: Path) -> bool:
         )
     elif adapter_type == "skse_cpp":
         return exe.exists()
-    else:  # bepinex (default)
+    elif adapter_type in ("bepinex", ""):
         return exe.exists() and (path / "BepInEx" / "core" / "BepInEx.dll").exists()
+    else:
+        logger.warning("is_valid_game_path: unknown adapter_type %r — returning False", adapter_type)
+        return False
 
 
 def detect_valheim_path() -> Path | None:

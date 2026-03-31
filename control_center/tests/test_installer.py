@@ -143,11 +143,7 @@ def test_get_bundle_dir_returns_path():
 # ── is_valid_game_path ────────────────────────────────────────────────────────
 
 def test_valid_game_path_bepinex_accepts_valid_installation(tmp_path):
-    v = tmp_path / "Valheim"
-    v.mkdir()
-    (v / "valheim.exe").touch()
-    (v / "BepInEx" / "core").mkdir(parents=True)
-    (v / "BepInEx" / "core" / "BepInEx.dll").touch()
+    v = _make_valheim(tmp_path)
     cfg = {"process_name": "valheim", "adapter_type": "bepinex"}
     assert is_valid_game_path(cfg, v) is True
 
@@ -214,3 +210,20 @@ def test_valid_game_path_defaults_to_bepinex_when_no_adapter_type(tmp_path):
 def test_valid_game_path_returns_false_for_nonexistent_dir(tmp_path):
     cfg = {"process_name": "valheim", "adapter_type": "bepinex"}
     assert is_valid_game_path(cfg, tmp_path / "no_such_dir") is False
+
+
+def test_valid_game_path_returns_false_for_unknown_adapter_type(tmp_path):
+    v = tmp_path / "Game"
+    v.mkdir()
+    (v / "game.exe").touch()
+    cfg = {"process_name": "game", "adapter_type": "unknown_type"}
+    assert is_valid_game_path(cfg, v) is False
+
+
+def test_valid_game_path_cet_rejects_missing_exe(tmp_path):
+    v = tmp_path / "CP2077"
+    v.mkdir()
+    # No exe — only CET dir
+    (v / "bin" / "x64" / "plugins" / "cyber_engine_tweaks").mkdir(parents=True)
+    cfg = {"process_name": "Cyberpunk2077", "adapter_type": "cet_lua"}
+    assert is_valid_game_path(cfg, v) is False
