@@ -1,6 +1,5 @@
 # control_center/tests/test_session_manager.py
 import sys
-import pytest
 import yaml
 from pathlib import Path
 
