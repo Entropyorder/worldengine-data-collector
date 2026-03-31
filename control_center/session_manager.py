@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from enum import Enum, auto
 
+from pipe_reader import FrameBuffer, PipeServer, TCPServer, TransportServer
+
 
 class SessionState(Enum):
     IDLE = auto()
@@ -82,3 +84,16 @@ class SessionManager:
         self._settings["valheim_path"] = path
         with open(self._settings_path, "w", encoding="utf-8") as f:
             yaml.dump(self._settings, f, allow_unicode=True)
+
+    def make_transport_server(self, frame_buffer: FrameBuffer) -> TransportServer:
+        """
+        Returns the correct TransportServer for the loaded game config.
+        Call after load_game(). Defaults to PipeServer if 'transport' key absent.
+        """
+        if not self._game_config:
+            raise RuntimeError("Call load_game() first")
+        transport = self._game_config.get("transport", "namedpipe")
+        if transport == "tcp":
+            port = self._game_config.get("tcp_port", 27015)
+            return TCPServer(frame_buffer, port=port)
+        return PipeServer(frame_buffer)
