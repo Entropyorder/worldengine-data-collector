@@ -115,7 +115,7 @@ jobs:
           Copy-Item C:\libs\ffmpeg\bin\*.dll bundle_dlls\
 
           # BepInEx plugin DLL (user copies to Valheim/BepInEx/plugins/ via the control center)
-          $pluginBin = "adapters\unity\WorldEngineCollector\bin\Release\net6.0"
+          $pluginBin = "adapters\unity\WorldEngineCollector\bin\Release\netstandard2.0"
           if (Test-Path "$pluginBin\WorldEngineCollector.dll") {
             Copy-Item "$pluginBin\WorldEngineCollector.dll" bundle_dlls\
           }

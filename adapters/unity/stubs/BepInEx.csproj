@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>BepInEx</AssemblyName>
     <RootNamespace>BepInEx</RootNamespace>
     <OutputPath>bin\</OutputPath>
@@ -10,7 +10,7 @@
     <Compile Remove="UnityEngine.cs" />
     <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
     <Reference Include="UnityEngine">
-      <HintPath>bin\net6.0\UnityEngine.dll</HintPath>
+      <HintPath>bin\netstandard2.0\UnityEngine.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
