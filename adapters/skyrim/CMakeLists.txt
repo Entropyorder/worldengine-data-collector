@@ -35,6 +35,10 @@ FetchContent_MakeAvailable(rapidcsv)
 list(APPEND CMAKE_INCLUDE_PATH "${rapidcsv_SOURCE_DIR}/src")
 
 # ── CommonLibSSE-NG ───────────────────────────────────────────────────────────
+# Disable install/export rules — CommonLibSSE tries to export spdlog which is
+# a FetchContent target with no install rules, causing a generate-step error.
+# We copy the DLL manually in CI so we don't need cmake --install at all.
+set(CMAKE_SKIP_INSTALL_RULES TRUE CACHE BOOL "" FORCE)
 set(SKSE_SUPPORT_XBYAK OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTS         OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(CommonLibSSE
@@ -63,7 +67,4 @@ set_target_properties(WorldEngineCollector_Skyrim PROPERTIES
     OUTPUT_NAME "WorldEngineCollector"
 )
 
-# SKSE plugins must be in Data/SKSE/Plugins/ — runtime hint only
-install(TARGETS WorldEngineCollector_Skyrim
-    RUNTIME DESTINATION "Data/SKSE/Plugins"
-)
+# SKSE plugins must be in Data/SKSE/Plugins/ — DLL is copied by CI script
