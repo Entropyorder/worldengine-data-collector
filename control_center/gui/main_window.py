@@ -117,8 +117,14 @@ class MainWindow(QMainWindow):
         if not yaml_path:
             self._btn_start.setEnabled(False)
             return
-        with open(yaml_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
+        try:
+            with open(yaml_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+            if not isinstance(cfg, dict):
+                raise ValueError("invalid game config")
+        except (OSError, ValueError, yaml.YAMLError):
+            self._btn_start.setEnabled(False)
+            return
         process_name = cfg.get("process_name", "")
         stored = self._sm.get_game_install_path(process_name)
         if stored and is_valid_game_path(cfg, Path(stored)):
@@ -134,8 +140,13 @@ class MainWindow(QMainWindow):
         yaml_path = self._game_combo.currentData()
         if not yaml_path:
             return
-        with open(yaml_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
+        try:
+            with open(yaml_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+            if not isinstance(cfg, dict):
+                raise ValueError("invalid game config")
+        except (OSError, ValueError, yaml.YAMLError):
+            return
         from gui.game_setup_dialog import GameSetupDialog
         dlg = GameSetupDialog(game_config=cfg, sm=self._sm, parent=self)
         dlg.exec()
