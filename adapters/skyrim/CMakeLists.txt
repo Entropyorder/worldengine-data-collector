@@ -31,8 +31,9 @@ FetchContent_Declare(rapidcsv
     GIT_TAG        v8.83
 )
 FetchContent_MakeAvailable(rapidcsv)
-# Add the src/ dir so find_path(... "rapidcsv.h") succeeds
-list(APPEND CMAKE_INCLUDE_PATH "${rapidcsv_SOURCE_DIR}/src")
+# Pre-set the find_path result variable so CommonLibSSE's find_path(RAPIDCSV_INCLUDE_DIRS "rapidcsv.h")
+# resolves without searching (rapidcsv is header-only, src/ contains rapidcsv.h).
+set(RAPIDCSV_INCLUDE_DIRS "${rapidcsv_SOURCE_DIR}/src" CACHE PATH "" FORCE)
 
 # ── CommonLibSSE-NG ───────────────────────────────────────────────────────────
 # Disable install/export rules — CommonLibSSE tries to export spdlog which is
@@ -54,7 +55,12 @@ add_library(WorldEngineCollector_Skyrim SHARED
     src/TCPWriter.cpp
 )
 
-target_include_directories(WorldEngineCollector_Skyrim PRIVATE src)
+target_include_directories(WorldEngineCollector_Skyrim PRIVATE
+    src
+    # rapidcsv.h is included transitively through CommonLibSSE headers (e.g. Relocation.h)
+    # but CommonLibSSE exposes it PRIVATE only, so we must add it here too.
+    "${rapidcsv_SOURCE_DIR}/src"
+)
 
 target_link_libraries(WorldEngineCollector_Skyrim
     PRIVATE
