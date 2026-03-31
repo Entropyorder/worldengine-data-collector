@@ -1,6 +1,7 @@
 using BepInEx;
 using BepInEx.Logging;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace WorldEngine
@@ -9,6 +10,9 @@ namespace WorldEngine
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
+
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr LoadLibrary(string lpFileName);
 
         private SharedMemReader _sharedMem;
         private PipeWriter _pipe;
@@ -24,7 +28,7 @@ namespace WorldEngine
             string dxCapturePath = Path.Combine(Path.GetDirectoryName(Info.Location), "..", "..", "dx_capture.dll");
             if (File.Exists(dxCapturePath))
             {
-                System.Runtime.InteropServices.NativeLibrary.Load(dxCapturePath);
+                LoadLibrary(dxCapturePath);
                 Log.LogInfo($"Loaded dx_capture.dll from {dxCapturePath}");
             }
             else
