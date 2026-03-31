@@ -4,11 +4,17 @@
     <AssemblyName>WorldEngineCollector</AssemblyName>
     <RootNamespace>WorldEngine</RootNamespace>
     <Nullable>enable</Nullable>
-    <!-- Override these two in CI via /p: flags or Directory.Build.props -->
+
+    <!-- ── Local dev paths (default to Steam installation) ────────────────── -->
     <BepInExDir Condition="'$(BepInExDir)' == ''">C:\Steam\steamapps\common\Valheim\BepInEx\core</BepInExDir>
     <ValheimManagedDir Condition="'$(ValheimManagedDir)' == ''">C:\Steam\steamapps\common\Valheim\valheim_Data\Managed</ValheimManagedDir>
+
+    <!-- ── CI stub path (relative to this csproj) ─────────────────────────── -->
+    <StubsDir Condition="'$(StubsDir)' == ''">$(MSBuildThisFileDirectory)..\stubs\bin</StubsDir>
   </PropertyGroup>
-  <ItemGroup>
+
+  <!-- ── Local dev: reference real Valheim DLLs ─────────────────────────── -->
+  <ItemGroup Condition="'$(CI)' != 'true'">
     <Reference Include="BepInEx">
       <HintPath>$(BepInExDir)\BepInEx.dll</HintPath>
       <Private>false</Private>
@@ -25,5 +31,23 @@
       <HintPath>$(BepInExDir)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <!-- ── CI: reference compiled stubs + Newtonsoft.Json from NuGet ─────── -->
+  <ItemGroup Condition="'$(CI)' == 'true'">
+    <Reference Include="BepInEx">
+      <HintPath>$(StubsDir)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(StubsDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- CoreModule: in stubs all types are in UnityEngine.dll — point both there -->
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(StubsDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" PrivateAssets="all" />
   </ItemGroup>
 </Project>

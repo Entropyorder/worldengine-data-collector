@@ -1,23 +1,23 @@
-name: Build WorldEngine Data Collector
+name: Build WorldEngine Data Collector (single EXE)
 
 on:
   push:
-    branches: [main, feature/phase1-valheim]
+    branches: [main, "feature/**"]
   pull_request:
     branches: [main]
   release:
     types: [created]
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────
-  # Job 1: Build dx_capture.dll  (C++17, MSVC x64)
-  # ─────────────────────────────────────────────────────────────────────────
-  build-dx-capture:
-    name: Build dx_capture.dll
+  build:
+    name: Build everything → single EXE
     runs-on: windows-latest
+
     steps:
+      # ── 0. Checkout ───────────────────────────────────────────────────────
       - uses: actions/checkout@v4
 
+      # ── 1. Build dx_capture.dll (C++/MSVC) ───────────────────────────────
       - name: Download MinHook 1.3.3
         shell: pwsh
         run: |
@@ -26,10 +26,10 @@ jobs:
           Expand-Archive minhook.zip -DestinationPath C:\minhook_raw
           New-Item -ItemType Directory -Force C:\libs\minhook\include | Out-Null
           New-Item -ItemType Directory -Force C:\libs\minhook\lib     | Out-Null
-          Copy-Item C:\minhook_raw\include\MinHook.h         C:\libs\minhook\include\
+          Copy-Item C:\minhook_raw\include\MinHook.h             C:\libs\minhook\include\
           Copy-Item "C:\minhook_raw\lib\VC16\x64\MinHook.x64.lib" C:\libs\minhook\lib\
 
-      - name: Download FFmpeg 7.x pre-built (GPL shared, win64)
+      - name: Download FFmpeg 7.x GPL shared win64
         shell: pwsh
         run: |
           $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
@@ -39,165 +39,103 @@ jobs:
           New-Item -ItemType Directory -Force C:\libs\ffmpeg | Out-Null
           Copy-Item -Recurse "$top\include" C:\libs\ffmpeg\include
           Copy-Item -Recurse "$top\lib"     C:\libs\ffmpeg\lib
+          # FFmpeg runtime DLLs — bundled into the Python EXE later
           Copy-Item -Recurse "$top\bin"     C:\libs\ffmpeg\bin
-          # Make ffmpeg.exe available for the Python control center packaging step
-          echo "C:\libs\ffmpeg\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Configure & Build (Release x64)
+      - name: Build dx_capture.dll
         shell: pwsh
         run: |
-          cmake -B build -S dx_capture -A x64 `
+          cmake -B build_cpp -S dx_capture -A x64 `
             -DMINHOOK_ROOT="C:/libs/minhook" `
             -DFFMPEG_ROOT="C:/libs/ffmpeg"
-          cmake --build build --config Release
+          cmake --build build_cpp --config Release
+          # Confirm DLL was produced
+          Test-Path adapters\bin\dx_capture.dll | Should -Be $true
 
-      - name: Upload dx_capture.dll
-        uses: actions/upload-artifact@v4
-        with:
-          name: dx-capture-dll
-          path: adapters/bin/dx_capture.dll
-
-      - name: Upload FFmpeg runtime DLLs (needed at runtime alongside dx_capture.dll)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-runtime-dlls
-          path: C:\libs\ffmpeg\bin\*.dll
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Job 2: Build WorldEngineCollector.dll  (C# / .NET 4.6 BepInEx plugin)
-  #
-  # Requires two secrets set in your repo settings:
-  #   UNITY_DLLS_URL  – URL to a zip containing the stripped Valheim managed DLLs
-  #                     (UnityEngine.dll + UnityEngine.CoreModule.dll)
-  #                     Only needed for the C# build; these come from your local
-  #                     Valheim installation.  See docs/ci-setup.md for details.
-  # BepInEx DLLs are downloaded automatically from the official GitHub release.
-  # ─────────────────────────────────────────────────────────────────────────
-  build-bepinex-plugin:
-    name: Build WorldEngineCollector.dll
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download BepInEx 5.4.23.2 (provides BepInEx.dll + Newtonsoft.Json.dll)
+      # ── 2. Build Unity stubs (no Valheim needed) ──────────────────────────
+      - name: Build Unity & BepInEx stubs
         shell: pwsh
         run: |
-          $url = "https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.2/BepInEx_win_x64_5.4.23.2.zip"
-          Invoke-WebRequest $url -OutFile bepinex.zip
-          Expand-Archive bepinex.zip -DestinationPath C:\bepinex_dist
-          echo "BEPINEX_DIR=C:\bepinex_dist\BepInEx\core" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $stubs = "adapters\unity\stubs"
+          dotnet build "$stubs\UnityEngine.csproj" -c Release --nologo
+          # BepInEx.csproj references the stub UnityEngine.dll already built above
+          dotnet build "$stubs\BepInEx.csproj"    -c Release --nologo
 
-      - name: Download Valheim Unity DLL stubs
-        if: ${{ secrets.UNITY_DLLS_URL != '' }}
+      # ── 3. Build WorldEngineCollector.dll (BepInEx plugin) ───────────────
+      - name: Build WorldEngineCollector.dll
         shell: pwsh
+        env:
+          CI: "true"
         run: |
-          Invoke-WebRequest "${{ secrets.UNITY_DLLS_URL }}" -OutFile unity_dlls.zip
-          Expand-Archive unity_dlls.zip -DestinationPath C:\unity_stubs
-          echo "VALHEIM_MANAGED_DIR=C:\unity_stubs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $plugin = "adapters\unity\WorldEngineCollector"
+          $stubs  = (Resolve-Path "adapters\unity\stubs\bin").Path
+          dotnet build "$plugin\WorldEngineCollector.csproj" `
+            -c Release --nologo `
+            /p:CI=true `
+            /p:StubsDir="$stubs"
 
-      - name: Build plugin
-        if: ${{ secrets.UNITY_DLLS_URL != '' }}
-        shell: pwsh
-        run: |
-          dotnet build adapters/unity/WorldEngineCollector/WorldEngineCollector.csproj `
-            /p:BepInExDir="$env:BEPINEX_DIR" `
-            /p:ValheimManagedDir="$env:VALHEIM_MANAGED_DIR" `
-            -c Release
-
-      - name: Upload WorldEngineCollector.dll
-        if: ${{ secrets.UNITY_DLLS_URL != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: bepinex-plugin
-          path: adapters/unity/WorldEngineCollector/bin/Release/WorldEngineCollector.dll
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Job 3: Package Python Control Center as standalone Windows .exe
-  # ─────────────────────────────────────────────────────────────────────────
-  build-python-exe:
-    name: Package Python Control Center
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
+      # ── 4. Package everything as a single Windows EXE (PyInstaller) ───────
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         shell: pwsh
         run: |
           cd control_center
-          pip install PyQt6 pyyaml openpyxl pyinstaller
+          pip install --quiet PyQt6 pyyaml openpyxl pyinstaller
 
-      - name: Build standalone exe with PyInstaller
+      - name: Collect DLLs for bundling
         shell: pwsh
         run: |
-          cd control_center
-          pyinstaller --onefile --windowed `
-            --name "WorldEngineControlCenter" `
-            --add-data "gui;gui" `
-            --collect-all PyQt6 `
-            main.py
+          # Gather all runtime DLLs into a single staging folder
+          New-Item -ItemType Directory -Force bundle_dlls | Out-Null
 
-      - name: Upload control center exe
-        uses: actions/upload-artifact@v4
-        with:
-          name: control-center-exe
-          path: control_center/dist/WorldEngineControlCenter.exe
+          # dx_capture.dll
+          Copy-Item adapters\bin\dx_capture.dll bundle_dlls\
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Job 4: Assemble release package ZIP
-  # ─────────────────────────────────────────────────────────────────────────
-  package-release:
-    name: Assemble Release ZIP
-    runs-on: windows-latest
-    needs: [build-dx-capture, build-python-exe]
-    # build-bepinex-plugin is optional (needs secret); package whatever is ready
-    steps:
-      - uses: actions/checkout@v4
+          # FFmpeg runtime DLLs (needed by dx_capture at load time)
+          Copy-Item C:\libs\ffmpeg\bin\*.dll bundle_dlls\
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release_artifacts
+          # BepInEx plugin DLL (user copies to Valheim/BepInEx/plugins/ via the control center)
+          $pluginBin = "adapters\unity\WorldEngineCollector\bin\Release"
+          if (Test-Path "$pluginBin\WorldEngineCollector.dll") {
+            Copy-Item "$pluginBin\WorldEngineCollector.dll" bundle_dlls\
+          }
 
-      - name: Build release directory
+          Write-Host "Bundling DLLs:"
+          Get-ChildItem bundle_dlls
+
+      - name: Build single EXE with PyInstaller
         shell: pwsh
         run: |
-          $out = "WorldEngine-DataCollector-v1.0"
-          New-Item -ItemType Directory -Force $out\dx_capture       | Out-Null
-          New-Item -ItemType Directory -Force $out\BepInEx\plugins  | Out-Null
-          New-Item -ItemType Directory -Force $out\control_center    | Out-Null
+          # Build list of --add-binary flags for all DLLs
+          $dllFlags = (Get-ChildItem bundle_dlls -Filter *.dll |
+            ForEach-Object { "--add-binary `"bundle_dlls\$($_.Name);.`"" }) -join " "
 
-          # dx_capture.dll + FFmpeg runtime DLLs
-          Copy-Item release_artifacts\dx-capture-dll\dx_capture.dll         $out\dx_capture\
-          if (Test-Path release_artifacts\ffmpeg-runtime-dlls) {
-            Copy-Item release_artifacts\ffmpeg-runtime-dlls\*.dll           $out\dx_capture\
-          }
+          $cmd = "pyinstaller " +
+            "--onefile --windowed " +
+            "--name WorldEngineDataCollector " +
+            "--collect-all PyQt6 " +
+            "--add-data `"control_center/gui;gui`" " +
+            "--paths control_center " +
+            $dllFlags + " " +
+            "control_center/main.py"
 
-          # BepInEx plugin (optional)
-          if (Test-Path release_artifacts\bepinex-plugin\WorldEngineCollector.dll) {
-            Copy-Item release_artifacts\bepinex-plugin\WorldEngineCollector.dll  $out\BepInEx\plugins\
-          }
+          Write-Host "Running: $cmd"
+          Invoke-Expression $cmd
 
-          # Python control center exe
-          Copy-Item release_artifacts\control-center-exe\WorldEngineControlCenter.exe $out\control_center\
-
-          # README and default settings
-          Copy-Item docs\install-guide.md $out\README.md -ErrorAction SilentlyContinue
-
-          Compress-Archive -Path $out -DestinationPath "${out}.zip"
-
-      - name: Upload release ZIP
+      # ── 5. Upload artifact ────────────────────────────────────────────────
+      - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WorldEngine-DataCollector-release
-          path: WorldEngine-DataCollector-v1.0.zip
+          name: WorldEngineDataCollector
+          path: dist\WorldEngineDataCollector.exe
 
+      # ── 6. Attach to GitHub Release (only on release events) ─────────────
       - name: Attach to GitHub Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: WorldEngine-DataCollector-v1.0.zip
+          files: dist\WorldEngineDataCollector.exe

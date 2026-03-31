@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net46</TargetFramework>
+    <!-- AssemblyName MUST match the Reference Include name in WorldEngineCollector.csproj -->
+    <AssemblyName>UnityEngine</AssemblyName>
+    <RootNamespace>UnityEngine</RootNamespace>
+    <Nullable>enable</Nullable>
+    <OutputPath>bin\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityEngine.cs" />
+  </ItemGroup>
+</Project>
