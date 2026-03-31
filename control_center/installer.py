@@ -45,6 +45,31 @@ def is_valid_valheim_path(path: Path) -> bool:
     )
 
 
+def is_valid_game_path(game_config: dict, path: Path) -> bool:
+    """
+    Returns True if path is a valid installation directory for the given game.
+    Dispatch logic is based on game_config['adapter_type']:
+      'cet_lua'  → exe + CET directory
+      'skse_cpp' → exe only
+      default    → exe + BepInEx/core/BepInEx.dll  (Valheim / BepInEx)
+    """
+    if not path.is_dir():
+        return False
+    process_name = game_config.get("process_name", "")
+    adapter_type = game_config.get("adapter_type", "")
+    exe = path / f"{process_name}.exe"
+
+    if adapter_type == "cet_lua":
+        return (
+            exe.exists()
+            and (path / "bin" / "x64" / "plugins" / "cyber_engine_tweaks").is_dir()
+        )
+    elif adapter_type == "skse_cpp":
+        return exe.exists()
+    else:  # bepinex (default)
+        return exe.exists() and (path / "BepInEx" / "core" / "BepInEx.dll").exists()
+
+
 def detect_valheim_path() -> Path | None:
     """
     Scans common Steam library locations and returns the first valid
