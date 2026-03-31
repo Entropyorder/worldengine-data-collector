@@ -1,0 +1,77 @@
+# ── C++ build ──────────────────────────────────────────────────────────────
+build/
+dx_capture/build/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+adapters/bin/
+
+# ── C# / .NET ──────────────────────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+*.cache
+adapters/unity/WorldEngineCollector/bin/
+adapters/unity/WorldEngineCollector/obj/
+
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+control_center/.venv/
+control_center/dist/
+control_center/build/
+control_center/*.spec
+control_center/worldengine_control_center.egg-info/
+control_center/uv.lock
+*.egg-info/
+
+# ── PyInstaller ─────────────────────────────────────────────────────────────
+dist/
+*.spec
+
+# ── Third-party DLLs (copyright, do not commit) ────────────────────────────
+# BepInEx and Valheim game DLLs — copy locally from your Valheim installation
+libs/
+*.dll
+# Keep the output directory placeholder (the directory itself, not the DLLs)
+!adapters/bin/
+!adapters/bin/.gitkeep
+
+# ── Session output data ─────────────────────────────────────────────────────
+sessions/
+output/
+*.jsonl
+*.mp4
+*.xlsx
+fps.json
+systeminfo.json
+action_camera.json
+
+# ── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Windows ─────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── IDE ─────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Secrets / local config ───────────────────────────────────────────────────
+settings.yaml
+*.env

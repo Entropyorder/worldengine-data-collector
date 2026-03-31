@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net46</TargetFramework>
+    <AssemblyName>BepInEx</AssemblyName>
+    <RootNamespace>BepInEx</RootNamespace>
+    <Nullable>enable</Nullable>
+    <OutputPath>bin\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="BepInEx.cs" />
+    <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
+    <Reference Include="UnityEngine">
+      <HintPath>bin\UnityEngine.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

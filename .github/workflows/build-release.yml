@@ -1,0 +1,159 @@
+name: Build WorldEngine Data Collector (single EXE)
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build everything → single EXE
+    runs-on: windows-latest
+
+    steps:
+      # ── 0. Checkout ───────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── 1. Build dx_capture.dll (C++/MSVC) ───────────────────────────────
+      - name: Download MinHook 1.3.3
+        shell: pwsh
+        run: |
+          $url = "https://github.com/TsudaKageyu/minhook/releases/download/v1.3.3/MinHook_133_lib.zip"
+          Invoke-WebRequest $url -OutFile minhook.zip
+          Expand-Archive minhook.zip -DestinationPath C:\minhook_raw
+          New-Item -ItemType Directory -Force C:\libs\minhook\include | Out-Null
+          New-Item -ItemType Directory -Force C:\libs\minhook\lib     | Out-Null
+          Copy-Item C:\minhook_raw\include\MinHook.h             C:\libs\minhook\include\
+          Copy-Item "C:\minhook_raw\lib\VC16\x64\MinHook.x64.lib" C:\libs\minhook\lib\
+
+      - name: Download FFmpeg 7.x GPL shared win64
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
+          Invoke-WebRequest $url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath C:\ffmpeg_raw
+          $top = (Get-ChildItem C:\ffmpeg_raw -Directory | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force C:\libs\ffmpeg | Out-Null
+          Copy-Item -Recurse "$top\include" C:\libs\ffmpeg\include
+          Copy-Item -Recurse "$top\lib"     C:\libs\ffmpeg\lib
+          # FFmpeg runtime DLLs — bundled into the Python EXE later
+          Copy-Item -Recurse "$top\bin"     C:\libs\ffmpeg\bin
+
+      - name: Build dx_capture.dll
+        shell: pwsh
+        run: |
+          cmake -B build_cpp -S dx_capture -A x64 `
+            -DMINHOOK_ROOT="C:/libs/minhook" `
+            -DFFMPEG_ROOT="C:/libs/ffmpeg"
+          cmake --build build_cpp --config Release
+          # Confirm DLL was produced
+          if (-not (Test-Path adapters\bin\dx_capture.dll)) {
+            Write-Error "dx_capture.dll not produced"; exit 1
+          }
+
+      # ── 2. Build Unity stubs (no Valheim needed) ──────────────────────────
+      - name: Build Unity & BepInEx stubs
+        shell: pwsh
+        run: |
+          $stubs = "adapters\unity\stubs"
+          dotnet build "$stubs\UnityEngine.csproj" -c Release --nologo
+          # BepInEx.csproj references the stub UnityEngine.dll already built above
+          dotnet build "$stubs\BepInEx.csproj"    -c Release --nologo
+
+      # ── 3. Build WorldEngineCollector.dll (BepInEx plugin) ───────────────
+      - name: Build WorldEngineCollector.dll
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          $plugin = "adapters\unity\WorldEngineCollector"
+          $stubs  = (Resolve-Path "adapters\unity\stubs\bin").Path
+          dotnet build "$plugin\WorldEngineCollector.csproj" `
+            -c Release --nologo `
+            /p:CI=true `
+            /p:StubsDir="$stubs"
+
+      # ── 4. Package everything as a single Windows EXE (PyInstaller) ───────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          cd control_center
+          pip install --quiet PyQt6 pyyaml openpyxl pyinstaller
+
+      - name: Collect DLLs for bundling
+        shell: pwsh
+        run: |
+          # Gather all runtime DLLs into a single staging folder
+          New-Item -ItemType Directory -Force bundle_dlls | Out-Null
+
+          # dx_capture.dll
+          Copy-Item adapters\bin\dx_capture.dll bundle_dlls\
+
+          # FFmpeg runtime DLLs (needed by dx_capture at load time)
+          Copy-Item C:\libs\ffmpeg\bin\*.dll bundle_dlls\
+
+          # BepInEx plugin DLL (user copies to Valheim/BepInEx/plugins/ via the control center)
+          $pluginBin = "adapters\unity\WorldEngineCollector\bin\Release"
+          if (Test-Path "$pluginBin\WorldEngineCollector.dll") {
+            Copy-Item "$pluginBin\WorldEngineCollector.dll" bundle_dlls\
+          }
+
+          Write-Host "Bundling DLLs:"
+          Get-ChildItem bundle_dlls
+
+      - name: Build single EXE with PyInstaller
+        shell: pwsh
+        run: |
+          # Validate required DLLs are present before packaging
+          $required = @("dx_capture.dll", "WorldEngineCollector.dll")
+          foreach ($dll in $required) {
+            if (-not (Test-Path "bundle_dlls\$dll")) {
+              Write-Error "Required DLL missing: bundle_dlls\$dll"
+              exit 1
+            }
+          }
+
+          # Build --add-binary flags for every DLL in bundle_dlls/
+          $binaryFlags = (Get-ChildItem bundle_dlls -Filter *.dll |
+            ForEach-Object { "--add-binary `"bundle_dlls\$($_.Name);.`"" }) -join " "
+
+          $cmd = "pyinstaller " +
+            "--onefile --windowed " +
+            "--name WorldEngineDataCollector " +
+            "--collect-all PyQt6 " +
+            "--add-data `"control_center/gui;gui`" " +
+            "--paths control_center " +
+            $binaryFlags + " " +
+            "control_center/main.py"
+
+          Write-Host "PyInstaller command: $cmd"
+          Invoke-Expression $cmd
+
+          # Confirm output
+          if (-not (Test-Path "dist\WorldEngineDataCollector.exe")) {
+            Write-Error "EXE not produced"
+            exit 1
+          }
+          Write-Host "EXE size: $((Get-Item 'dist\WorldEngineDataCollector.exe').Length / 1MB) MB"
+
+      # ── 5. Upload artifact ────────────────────────────────────────────────
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldEngineDataCollector
+          path: dist\WorldEngineDataCollector.exe
+
+      # ── 6. Attach to GitHub Release (only on release events) ─────────────
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist\WorldEngineDataCollector.exe
