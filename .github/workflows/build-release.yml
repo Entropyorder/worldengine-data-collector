@@ -73,7 +73,7 @@ jobs:
           CI: "true"
         run: |
           $plugin = "adapters\unity\WorldEngineCollector"
-          $stubs  = Join-Path (Get-Location) "adapters\unity\stubs\bin\Release\net46"
+          $stubs  = Join-Path (Get-Location) "adapters\unity\stubs\bin\net46"
           if (-not (Test-Path $stubs)) {
             Write-Host "Stubs dir not found at $stubs — listing stubs\bin:"; Get-ChildItem "adapters\unity\stubs\bin" -Recurse -ErrorAction SilentlyContinue
             Write-Error "Stubs DLLs missing"; exit 1
