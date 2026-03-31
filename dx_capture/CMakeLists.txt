@@ -3,10 +3,28 @@ project(dx_capture LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(MINHOOK_INCLUDE_DIR "C:/libs/minhook/include")
-set(MINHOOK_LIB         "C:/libs/minhook/lib/MinHook.x64.lib")
-set(FFMPEG_INCLUDE_DIR  "C:/libs/ffmpeg/include")
-set(FFMPEG_LIB_DIR      "C:/libs/ffmpeg/lib")
+# Dependency root paths.
+# Priority: CMake cache variable (-DMINHOOK_ROOT=...) > env var > hard-coded default.
+if(NOT DEFINED MINHOOK_ROOT)
+    if(DEFINED ENV{MINHOOK_ROOT})
+        set(MINHOOK_ROOT "$ENV{MINHOOK_ROOT}")
+    else()
+        set(MINHOOK_ROOT "C:/libs/minhook")
+    endif()
+endif()
+
+if(NOT DEFINED FFMPEG_ROOT)
+    if(DEFINED ENV{FFMPEG_ROOT})
+        set(FFMPEG_ROOT "$ENV{FFMPEG_ROOT}")
+    else()
+        set(FFMPEG_ROOT "C:/libs/ffmpeg")
+    endif()
+endif()
+
+set(MINHOOK_INCLUDE_DIR "${MINHOOK_ROOT}/include")
+set(MINHOOK_LIB         "${MINHOOK_ROOT}/lib/MinHook.x64.lib")
+set(FFMPEG_INCLUDE_DIR  "${FFMPEG_ROOT}/include")
+set(FFMPEG_LIB_DIR      "${FFMPEG_ROOT}/lib")
 
 add_library(dx_capture SHARED
     src/dllmain.cpp

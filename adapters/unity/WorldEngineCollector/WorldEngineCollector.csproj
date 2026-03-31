@@ -4,22 +4,25 @@
     <AssemblyName>WorldEngineCollector</AssemblyName>
     <RootNamespace>WorldEngine</RootNamespace>
     <Nullable>enable</Nullable>
+    <!-- Override these two in CI via /p: flags or Directory.Build.props -->
+    <BepInExDir Condition="'$(BepInExDir)' == ''">C:\Steam\steamapps\common\Valheim\BepInEx\core</BepInExDir>
+    <ValheimManagedDir Condition="'$(ValheimManagedDir)' == ''">C:\Steam\steamapps\common\Valheim\valheim_Data\Managed</ValheimManagedDir>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="BepInEx">
-      <HintPath>C:\Steam\steamapps\common\Valheim\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>$(BepInExDir)\BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>C:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>$(ValheimManagedDir)\UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(ValheimManagedDir)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>C:\Steam\steamapps\common\Valheim\BepInEx\core\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(BepInExDir)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
