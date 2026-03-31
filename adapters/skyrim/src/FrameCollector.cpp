@@ -138,9 +138,21 @@ void FrameCollector::CollectLoop() {
         }
 
         // Player position + orientation
+        // GetGraphRotation does not exist in CommonLibSSE-NG v3.7.0.
+        // Use data.angle (stored Euler angles: x=pitch, y=roll, z=yaw, radians, Z-up)
+        // and convert to quaternion manually.
         RE::NiPoint3 playerPos = player->GetPosition();
         RE::NiQuaternion playerRot{};
-        player->GetGraphRotation(0, playerRot);
+        {
+            auto& a = player->data.angle;  // NiPoint3 {x=pitch, y=roll, z=yaw}
+            float cy = std::cos(a.z * 0.5f), sy = std::sin(a.z * 0.5f);
+            float cp = std::cos(a.x * 0.5f), sp = std::sin(a.x * 0.5f);
+            float cr = std::cos(a.y * 0.5f), sr = std::sin(a.y * 0.5f);
+            playerRot.w = cy * cp * cr + sy * sp * sr;
+            playerRot.x = cy * sp * cr + sy * cp * sr;
+            playerRot.y = sy * cp * cr - cy * sp * sr;
+            playerRot.z = cy * cp * sr - sy * sp * cr;
+        }
 
         // FOV (degrees)
         float fovDeg = cam->worldFOV;
