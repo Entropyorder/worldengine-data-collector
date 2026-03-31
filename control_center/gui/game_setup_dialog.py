@@ -80,7 +80,6 @@ class GameSetupDialog(QDialog):
         self.setStyleSheet(_DARK_STYLE)
 
         self._signals = _Signals()
-        self._signals.install_done.connect(self._on_install_done)
 
         self._build_ui()
 
@@ -125,6 +124,7 @@ class GameSetupDialog(QDialog):
             self._install_result.setMaximumHeight(80)
             self._install_result.hide()
             layout.addWidget(self._install_result)
+            self._signals.install_done.connect(self._on_install_done)
 
         layout.addStretch()
 
@@ -193,7 +193,10 @@ class GameSetupDialog(QDialog):
         bundle_dir = get_bundle_dir()
 
         def _run():
-            errors = install_dlls(game_path, bundle_dir)
+            try:
+                errors = install_dlls(game_path, bundle_dir)
+            except Exception as exc:
+                errors = [f"安装异常: {exc}"]
             self._signals.install_done.emit(errors)
 
         threading.Thread(target=_run, daemon=True).start()
