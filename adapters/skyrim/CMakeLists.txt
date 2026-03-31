@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.24)   # OVERRIDE_FIND_PACKAGE requires 3.24+
 project(WorldEngineCollector_Skyrim VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,21 +7,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 
 # ── fmt ───────────────────────────────────────────────────────────────────────
+# OVERRIDE_FIND_PACKAGE: redirects find_package(fmt) inside CommonLibSSE to
+# use this FetchContent target instead of looking for an installed config file.
 FetchContent_Declare(fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
     GIT_TAG        10.2.1
+    OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(fmt)
-set(fmt_DIR "${fmt_BINARY_DIR}" CACHE PATH "" FORCE)
 
 # ── spdlog (use the fmt we just fetched, not its bundled copy) ────────────────
 set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
 FetchContent_Declare(spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
     GIT_TAG        v1.13.0
+    OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(spdlog)
-set(spdlog_DIR "${spdlog_BINARY_DIR}" CACHE PATH "" FORCE)
 
 # ── rapidcsv (header-only; CommonLibSSE uses find_path to locate it) ──────────
 FetchContent_Declare(rapidcsv
@@ -34,7 +36,7 @@ list(APPEND CMAKE_INCLUDE_PATH "${rapidcsv_SOURCE_DIR}/src")
 
 # ── CommonLibSSE-NG ───────────────────────────────────────────────────────────
 set(SKSE_SUPPORT_XBYAK OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTS         OFF CACHE BOOL "" FORCE)  # avoids needing Catch2
+set(BUILD_TESTS         OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(CommonLibSSE
     GIT_REPOSITORY https://github.com/CharmedBaryon/CommonLibSSE-NG.git
     GIT_TAG        v3.7.0
