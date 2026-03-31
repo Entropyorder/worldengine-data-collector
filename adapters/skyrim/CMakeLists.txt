@@ -4,27 +4,44 @@ project(WorldEngineCollector_Skyrim VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ── fmt (required by CommonLibSSE-NG) ─────────────────────────────────────────
 include(FetchContent)
-FetchContent_Declare(
-    fmt
+
+# ── fmt ───────────────────────────────────────────────────────────────────────
+FetchContent_Declare(fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
     GIT_TAG        10.2.1
 )
 FetchContent_MakeAvailable(fmt)
-# Tell find_package(fmt) where the generated fmtConfig.cmake lives
 set(fmt_DIR "${fmt_BINARY_DIR}" CACHE PATH "" FORCE)
 
-# ── CommonLibSSE-NG (SKSE API headers + implementation) ───────────────────────
-FetchContent_Declare(
-    CommonLibSSE
+# ── spdlog (use the fmt we just fetched, not its bundled copy) ────────────────
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
+FetchContent_Declare(spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.13.0
+)
+FetchContent_MakeAvailable(spdlog)
+set(spdlog_DIR "${spdlog_BINARY_DIR}" CACHE PATH "" FORCE)
+
+# ── rapidcsv (header-only; CommonLibSSE uses find_path to locate it) ──────────
+FetchContent_Declare(rapidcsv
+    GIT_REPOSITORY https://github.com/d99kris/rapidcsv.git
+    GIT_TAG        v8.83
+)
+FetchContent_MakeAvailable(rapidcsv)
+# Add the src/ dir so find_path(... "rapidcsv.h") succeeds
+list(APPEND CMAKE_INCLUDE_PATH "${rapidcsv_SOURCE_DIR}/src")
+
+# ── CommonLibSSE-NG ───────────────────────────────────────────────────────────
+set(SKSE_SUPPORT_XBYAK OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS         OFF CACHE BOOL "" FORCE)  # avoids needing Catch2
+FetchContent_Declare(CommonLibSSE
     GIT_REPOSITORY https://github.com/CharmedBaryon/CommonLibSSE-NG.git
     GIT_TAG        v3.7.0
 )
-set(SKSE_SUPPORT_XBYAK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(CommonLibSSE)
 
-# ── Plugin DLL ─────────────────────────────────────────────────────────────────
+# ── Plugin DLL ────────────────────────────────────────────────────────────────
 add_library(WorldEngineCollector_Skyrim SHARED
     src/Plugin.cpp
     src/FrameCollector.cpp
