@@ -7,7 +7,4 @@
     <Nullable>enable</Nullable>
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="UnityEngine.cs" />
-  </ItemGroup>
 </Project>

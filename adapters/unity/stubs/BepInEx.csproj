@@ -7,7 +7,6 @@
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="BepInEx.cs" />
     <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
     <Reference Include="UnityEngine">
       <HintPath>bin\UnityEngine.dll</HintPath>
