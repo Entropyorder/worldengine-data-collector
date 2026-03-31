@@ -1,0 +1,36 @@
+game_name: "Cyberpunk 2077"
+process_name: "Cyberpunk2077"
+engine: redengine
+adapter_type: cet_lua
+transport: tcp
+tcp_port: 27015
+capture_fps: 30
+game_target_fps: 60
+coordinate_system: right_hand_y_up
+metric_scale: 1.0
+player_object_name: "V"
+ui_hide_method: cet_hud
+
+key_mapping:
+  87:  "前进(W)"
+  83:  "后退(S)"
+  65:  "左移(A)"
+  68:  "右移(D)"
+  32:  "跳跃(Space)"
+  160: "冲刺(LShift)"
+  70:  "翻滚(F)"
+  69:  "交互(E)"
+  82:  "上车/下车(R)"
+  67:  "蹲下(C)"
+  18:  "瞄准(LAlt)"
+  1:   "攻击(LMB)"
+  2:   "格挡/闪避(RMB)"
+
+mouse_config:
+  cursor_locked: true
+  controls_camera: true
+  description: "鼠标控制视角，右键瞄准"
+
+game_meta:
+  game_type_description: "3D 开放世界第一人称RPG"
+  perspective: "第一人称"

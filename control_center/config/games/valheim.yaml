@@ -6,6 +6,7 @@ capture_fps: 30
 game_target_fps: 60
 coordinate_system: left_hand_y_up
 metric_scale: 1.0
+transport: namedpipe
 player_object_name: "Player(Clone)"
 ui_hide_method: disable_canvas
 

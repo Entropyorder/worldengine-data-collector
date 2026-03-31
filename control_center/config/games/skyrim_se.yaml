@@ -1,0 +1,35 @@
+game_name: "Skyrim Special Edition"
+process_name: "SkyrimSE"
+engine: creation
+adapter_type: skse_cpp
+transport: tcp
+tcp_port: 27015
+capture_fps: 30
+game_target_fps: 60
+coordinate_system: right_hand_z_up
+metric_scale: 0.01428
+player_object_name: "Player"
+ui_hide_method: none
+
+key_mapping:
+  87:  "前进(W)"
+  83:  "后退(S)"
+  65:  "左移(A)"
+  68:  "右移(D)"
+  32:  "跳跃(Space)"
+  160: "冲刺(LShift)"
+  69:  "交互(E)"
+  67:  "蹲下(C)"
+  90:  "潜行(Z)"
+  9:   "战斗准备(Tab)"
+  1:   "攻击(LMB)"
+  2:   "格挡(RMB)"
+
+mouse_config:
+  cursor_locked: true
+  controls_camera: true
+  description: "鼠标控制视角旋转，右键格挡"
+
+game_meta:
+  game_type_description: "3D 开放世界第三/第一人称RPG"
+  perspective: "第三/第一人称可切换"
