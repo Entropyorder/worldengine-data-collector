@@ -42,6 +42,7 @@ QTextEdit     { background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; }
 
 class _Signals(QObject):
     install_done = pyqtSignal(list)  # list[str] of errors; empty = success
+    detect_done = pyqtSignal(object)   # carries Path | None
 
 
 class SetupWizard(QDialog):
@@ -61,6 +62,7 @@ class SetupWizard(QDialog):
 
         self._signals = _Signals()
         self._signals.install_done.connect(self._on_install_done)
+        self._signals.detect_done.connect(self._on_detect_done)
 
         self._stack = QStackedWidget()
         layout = QVBoxLayout(self)
@@ -178,19 +180,23 @@ class SetupWizard(QDialog):
 
     def _go_to_detect(self) -> None:
         self._stack.setCurrentIndex(1)
-        def _detect():
+
+        def _detect() -> None:
             found = detect_valheim_path()
-            if found:
-                self._path_edit.setText(str(found))
-                self._detect_label.setText("✓ 自动检测到 Valheim")
-                self._detect_label.setStyleSheet("color: #5fba7d;")
-            else:
-                self._detect_label.setText(
-                    '未能自动检测到 Valheim，请点击\u201c浏览\u201d手动选择安装目录'
-                )
-                self._detect_label.setStyleSheet("color: #f0a04b;")
+            self._signals.detect_done.emit(found)
 
         threading.Thread(target=_detect, daemon=True).start()
+
+    def _on_detect_done(self, found: object) -> None:
+        if found:
+            self._path_edit.setText(str(found))
+            self._detect_label.setText("\u2713 自动检测到 Valheim")
+            self._detect_label.setStyleSheet("color: #5fba7d;")
+        else:
+            self._detect_label.setText(
+                '未能自动检测到 Valheim，请点击\u201c浏览\u201d手动选择安装目录'
+            )
+            self._detect_label.setStyleSheet("color: #f0a04b;")
 
     def _browse_path(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -212,6 +218,7 @@ class SetupWizard(QDialog):
             self._detect_label.setStyleSheet("color: #5fba7d;")
 
     def _start_install(self) -> None:
+        self._install_btn.setEnabled(False)
         valheim_path = Path(self._path_edit.text())
         bundle_dir = get_bundle_dir()
         self._stack.setCurrentIndex(2)
