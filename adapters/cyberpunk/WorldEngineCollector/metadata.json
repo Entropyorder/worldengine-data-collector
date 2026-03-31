@@ -1,0 +1,7 @@
+{
+  "name": "WorldEngineCollector",
+  "description": "Frame-aligned telemetry collector for WorldEngine Data Collector. Streams camera/player data over TCP.",
+  "version": "1.0.0",
+  "authors": ["WorldEngine"],
+  "url": ""
+}
