@@ -73,15 +73,9 @@ jobs:
           CI: "true"
         run: |
           $plugin = "adapters\unity\WorldEngineCollector"
-          $stubs  = Join-Path (Get-Location) "adapters\unity\stubs\bin\net46"
-          if (-not (Test-Path $stubs)) {
-            Write-Host "Stubs dir not found at $stubs — listing stubs\bin:"; Get-ChildItem "adapters\unity\stubs\bin" -Recurse -ErrorAction SilentlyContinue
-            Write-Error "Stubs DLLs missing"; exit 1
-          }
           dotnet build "$plugin\WorldEngineCollector.csproj" `
             -c Release --nologo `
-            /p:CI=true `
-            /p:StubsDir="$stubs"
+            /p:CI=true
 
       # ── 4. Package everything as a single Windows EXE (PyInstaller) ───────
       - name: Set up Python 3.12
