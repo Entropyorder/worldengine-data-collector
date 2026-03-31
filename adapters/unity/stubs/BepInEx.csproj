@@ -3,13 +3,12 @@
     <TargetFramework>net46</TargetFramework>
     <AssemblyName>BepInEx</AssemblyName>
     <RootNamespace>BepInEx</RootNamespace>
-    <Nullable>enable</Nullable>
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
     <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
     <Reference Include="UnityEngine">
-      <HintPath>bin\UnityEngine.dll</HintPath>
+      <HintPath>bin\Release\net46\UnityEngine.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
