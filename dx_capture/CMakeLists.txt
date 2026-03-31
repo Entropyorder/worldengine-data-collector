@@ -50,5 +50,7 @@ target_link_libraries(dx_capture PRIVATE
 )
 
 set_target_properties(dx_capture PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/../adapters/bin"
+    RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_SOURCE_DIR}/../adapters/bin"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/../adapters/bin"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_SOURCE_DIR}/../adapters/bin"
 )

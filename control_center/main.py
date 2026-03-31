@@ -8,7 +8,15 @@ from PyQt6.QtWidgets import QApplication
 from gui.main_window import MainWindow
 from session_manager import SessionManager
 
-SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "config", "settings.yaml")
+if getattr(sys, "frozen", False):
+    _app_dir = os.path.join(
+        os.environ.get("APPDATA", os.path.expanduser("~")),
+        "WorldEngineDataCollector",
+    )
+    os.makedirs(_app_dir, exist_ok=True)
+    SETTINGS_PATH = os.path.join(_app_dir, "settings.yaml")
+else:
+    SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "config", "settings.yaml")
 
 
 def _run_setup_wizard_if_needed(app: QApplication, sm: SessionManager) -> None:

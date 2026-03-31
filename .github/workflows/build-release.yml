@@ -50,7 +50,9 @@ jobs:
             -DFFMPEG_ROOT="C:/libs/ffmpeg"
           cmake --build build_cpp --config Release
           # Confirm DLL was produced
-          Test-Path adapters\bin\dx_capture.dll | Should -Be $true
+          if (-not (Test-Path adapters\bin\dx_capture.dll)) {
+            Write-Error "dx_capture.dll not produced"; exit 1
+          }
 
       # ── 2. Build Unity stubs (no Valheim needed) ──────────────────────────
       - name: Build Unity & BepInEx stubs

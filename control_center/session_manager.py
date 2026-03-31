@@ -25,8 +25,12 @@ class SessionManager:
 
     def _ensure_settings(self) -> None:
         if not self._settings:
-            with open(self._settings_path, encoding="utf-8") as f:
-                self._settings = yaml.safe_load(f)
+            try:
+                with open(self._settings_path, encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f)
+                    self._settings = loaded if isinstance(loaded, dict) else {}
+            except FileNotFoundError:
+                self._settings = {}
 
     @property
     def state(self) -> SessionState:
