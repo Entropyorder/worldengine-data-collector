@@ -85,6 +85,26 @@ class SessionManager:
         with open(self._settings_path, "w", encoding="utf-8") as f:
             yaml.dump(self._settings, f, allow_unicode=True)
 
+    def get_game_install_path(self, process_name: str) -> str | None:
+        """
+        Returns the stored install path for a game, or None if not configured.
+        Falls back to the legacy 'valheim_path' key for process_name == 'valheim'.
+        """
+        self._ensure_settings()
+        result = self._settings.get("game_install_paths", {}).get(process_name)
+        if result is None and process_name == "valheim":
+            result = self._settings.get("valheim_path")
+        return result or None
+
+    def save_game_install_path(self, process_name: str, path: str) -> None:
+        """Persists the install path for a game to settings.yaml."""
+        self._ensure_settings()
+        if "game_install_paths" not in self._settings:
+            self._settings["game_install_paths"] = {}
+        self._settings["game_install_paths"][process_name] = path
+        with open(self._settings_path, "w", encoding="utf-8") as f:
+            yaml.dump(self._settings, f, allow_unicode=True)
+
     def make_transport_server(self, frame_buffer: FrameBuffer) -> TransportServer:
         """
         Returns the correct TransportServer for the loaded game config.
