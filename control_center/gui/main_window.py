@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._start_time: datetime | None = None
 
         self._build_ui()
+        self._build_menu_bar()
         self._load_game_list()
         self._timer = QTimer(self)
         self._timer.setInterval(500)
@@ -205,6 +206,27 @@ class MainWindow(QMainWindow):
         self._lbl_frames.setText(f"帧数: {frames}")
         self._lbl_fps.setText(f"游戏FPS: {fps:.1f}")
         self._lbl_time.setText(f"时长: {elapsed}")
+
+    def _build_menu_bar(self) -> None:
+        import platform
+        if platform.system() != "Windows":
+            return
+        from PyQt6.QtGui import QAction
+        menu_bar = self.menuBar()
+        tools_menu = menu_bar.addMenu("工具")
+        reinstall_action = QAction("重新安装 / 修复安装…", self)
+        reinstall_action.triggered.connect(self._run_reinstall)
+        tools_menu.addAction(reinstall_action)
+
+    def _run_reinstall(self) -> None:
+        from gui.setup_wizard import SetupWizard
+        wizard = SetupWizard(self)
+        wizard.exec()
+        if wizard.valheim_path:
+            self._sm.save_valheim_path(wizard.valheim_path)
+            self._signals.log.emit(
+                f"[安装] Valheim 路径已更新: {wizard.valheim_path}"
+            )
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self._sm.state == SessionState.RECORDING:
