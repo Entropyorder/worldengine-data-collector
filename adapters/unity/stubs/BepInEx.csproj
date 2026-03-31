@@ -10,7 +10,7 @@
     <Compile Remove="UnityEngine.cs" />
     <!-- BepInEx types inherit from MonoBehaviour — reference the Unity stub -->
     <Reference Include="UnityEngine">
-      <HintPath>bin\net46\UnityEngine.dll</HintPath>
+      <HintPath>bin\net6.0\UnityEngine.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
