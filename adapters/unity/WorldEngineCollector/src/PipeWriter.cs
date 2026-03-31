@@ -26,7 +26,7 @@ namespace WorldEngine
             {
                 _pipe?.Dispose();
                 _pipe = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.Out, PipeOptions.Asynchronous);
-                _pipe.Connect(timeoutMilliseconds: 100);
+                _pipe.Connect(100);
                 _writer = new StreamWriter(_pipe, Encoding.UTF8) { AutoFlush = true };
                 // Drain backlog
                 while (_backlog.Count > 0)
