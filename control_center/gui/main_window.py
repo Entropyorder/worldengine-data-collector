@@ -1,9 +1,20 @@
 from __future__ import annotations
 import os
+import sys
 import threading
 import yaml
 from datetime import datetime
 from pathlib import Path
+
+# When frozen by PyInstaller, __file__ lives inside the ephemeral _MEIPASS temp
+# dir (destroyed on exit). Read-only bundled assets come from _MEIPASS; the
+# user-writable settings file must live next to the EXE so it persists.
+if getattr(sys, "frozen", False):
+    _BUNDLE_DIR = Path(sys._MEIPASS)       # type: ignore[attr-defined]
+    _APP_DIR    = Path(sys.executable).parent
+else:
+    _BUNDLE_DIR = Path(__file__).parent.parent
+    _APP_DIR    = Path(__file__).parent.parent
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -27,8 +38,8 @@ class _Signals(QObject):
 
 
 class MainWindow(QMainWindow):
-    GAMES_CONFIG_DIR = Path(__file__).parent.parent / "config" / "games"
-    SETTINGS_PATH    = Path(__file__).parent.parent / "config" / "settings.yaml"
+    GAMES_CONFIG_DIR = _BUNDLE_DIR / "config" / "games"
+    SETTINGS_PATH    = _APP_DIR    / "config" / "settings.yaml"
 
     def __init__(self, sm: SessionManager | None = None) -> None:
         super().__init__()

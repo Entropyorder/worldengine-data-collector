@@ -78,12 +78,16 @@ class SessionManager:
         self._ensure_settings()
         return self._settings.get("valheim_path")
 
+    def _write_settings(self) -> None:
+        Path(self._settings_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(self._settings_path, "w", encoding="utf-8") as f:
+            yaml.dump(self._settings, f, allow_unicode=True)
+
     def save_valheim_path(self, path: str) -> None:
         """Persists the Valheim installation path to settings.yaml."""
         self._ensure_settings()
         self._settings["valheim_path"] = path
-        with open(self._settings_path, "w", encoding="utf-8") as f:
-            yaml.dump(self._settings, f, allow_unicode=True)
+        self._write_settings()
 
     def get_game_install_path(self, process_name: str) -> str | None:
         """
@@ -102,8 +106,7 @@ class SessionManager:
         if "game_install_paths" not in self._settings:
             self._settings["game_install_paths"] = {}
         self._settings["game_install_paths"][process_name] = path
-        with open(self._settings_path, "w", encoding="utf-8") as f:
-            yaml.dump(self._settings, f, allow_unicode=True)
+        self._write_settings()
 
     def make_transport_server(self, frame_buffer: FrameBuffer) -> TransportServer:
         """
