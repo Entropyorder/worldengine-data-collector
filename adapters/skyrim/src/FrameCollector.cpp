@@ -17,15 +17,10 @@
 // Declare only what we need; avoids pulling in <windows.h> which conflicts
 // with SKSE/Impl/WinAPI.h redefinitions of FindClose, FreeLibrary, etc.
 extern "C" {
-    __declspec(dllimport) void* __stdcall
-        OpenFileMappingW(unsigned long dwDesiredAccess, int bInheritHandle,
-                         const wchar_t* lpName);
-    __declspec(dllimport) void* __stdcall
-        MapViewOfFile(void* hFileMappingObject, unsigned long dwDesiredAccess,
-                      unsigned long dwFileOffsetHigh, unsigned long dwFileOffsetLow,
-                      unsigned long long dwNumberOfBytesToMap);
-    __declspec(dllimport) int __stdcall
-        UnmapViewOfFile(const void* lpBaseAddress);
+    __declspec(dllimport) int   __stdcall CloseHandle(void* hObject);
+    __declspec(dllimport) void* __stdcall OpenFileMappingW(unsigned long dwDesiredAccess, int bInheritHandle, const wchar_t* lpName);
+    __declspec(dllimport) void* __stdcall MapViewOfFile(void* hFileMappingObject, unsigned long dwDesiredAccess, unsigned long dwFileOffsetHigh, unsigned long dwFileOffsetLow, unsigned long long dwNumberOfBytesToMap);
+    __declspec(dllimport) int   __stdcall UnmapViewOfFile(const void* lpBaseAddress);
 }
 static constexpr unsigned long kFileMapRead = 0x0004UL;
 
@@ -77,7 +72,7 @@ void FrameCollector::Start() {
         if (_shmemView)
             SKSE::log::info("[WorldEngineCollector] Shared memory opened — video sync enabled");
         else {
-            SKSE::WinAPI::CloseHandle(_shmemFile);
+            CloseHandle(_shmemFile);
             _shmemFile = nullptr;
             SKSE::log::warn("[WorldEngineCollector] MapViewOfFile failed");
         }
@@ -94,7 +89,7 @@ void FrameCollector::Stop() {
     if (_thread.joinable()) _thread.join();
 
     if (_shmemView) { UnmapViewOfFile(_shmemView); _shmemView = nullptr; }
-    if (_shmemFile) { SKSE::WinAPI::CloseHandle(_shmemFile); _shmemFile = nullptr; }
+    if (_shmemFile) { CloseHandle(_shmemFile); _shmemFile = nullptr; }
 }
 
 void FrameCollector::OnKeyDown(uint32_t vk) {

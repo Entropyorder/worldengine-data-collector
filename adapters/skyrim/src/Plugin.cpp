@@ -3,6 +3,10 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include "FrameCollector.h"
 
+// CommonLibSSE-NG v3.7.0 does not expose LoadLibraryW in SKSE::WinAPI.
+// Forward-declare directly to avoid pulling in conflicting <windows.h>.
+extern "C" __declspec(dllimport) void* __stdcall LoadLibraryW(const wchar_t* lpLibFileName);
+
 SKSEPluginInfo(
     .Version = REL::Version{ 1, 0, 0, 0 },
     .Name    = "WorldEngineCollector",
@@ -15,7 +19,7 @@ void LoadDxCapture() {
     // dx_capture.dll must be placed in the Skyrim root (same dir as SkyrimSE.exe).
     // Windows searches the application directory first, so a bare name suffices.
     // HMODULE is void* — use SKSE::WinAPI to avoid raw <windows.h> inclusion.
-    void* h = SKSE::WinAPI::LoadLibraryW(L"dx_capture.dll");
+    void* h = LoadLibraryW(L"dx_capture.dll");
     if (h)
         SKSE::log::info("[WorldEngineCollector] dx_capture.dll loaded — video capture enabled");
     else
