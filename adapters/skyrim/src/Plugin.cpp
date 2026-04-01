@@ -14,7 +14,8 @@ namespace {
 void LoadDxCapture() {
     // dx_capture.dll must be placed in the Skyrim root (same dir as SkyrimSE.exe).
     // Windows searches the application directory first, so a bare name suffices.
-    HMODULE h = LoadLibraryW(L"dx_capture.dll");
+    // HMODULE is void* — use SKSE::WinAPI to avoid raw <windows.h> inclusion.
+    void* h = SKSE::WinAPI::LoadLibraryW(L"dx_capture.dll");
     if (h)
         SKSE::log::info("[WorldEngineCollector] dx_capture.dll loaded — video capture enabled");
     else

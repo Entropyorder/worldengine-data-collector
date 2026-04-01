@@ -13,6 +13,22 @@
 #include <string>
 #include <vector>
 
+// ── Shared-memory WinAPI not wrapped by CommonLibSSE-NG ───────────────────────
+// Declare only what we need; avoids pulling in <windows.h> which conflicts
+// with SKSE/Impl/WinAPI.h redefinitions of FindClose, FreeLibrary, etc.
+extern "C" {
+    __declspec(dllimport) void* __stdcall
+        OpenFileMappingW(unsigned long dwDesiredAccess, int bInheritHandle,
+                         const wchar_t* lpName);
+    __declspec(dllimport) void* __stdcall
+        MapViewOfFile(void* hFileMappingObject, unsigned long dwDesiredAccess,
+                      unsigned long dwFileOffsetHigh, unsigned long dwFileOffsetLow,
+                      unsigned long long dwNumberOfBytesToMap);
+    __declspec(dllimport) int __stdcall
+        UnmapViewOfFile(const void* lpBaseAddress);
+}
+static constexpr unsigned long kFileMapRead = 0x0004UL;
+
 using namespace std::chrono_literals;
 
 namespace WorldEngine {
@@ -55,13 +71,13 @@ void FrameCollector::Start() {
     }
 
     // Open dx_capture shared memory (may not exist if DLL failed to load)
-    _shmemFile = OpenFileMappingW(FILE_MAP_READ, FALSE, L"WorldEngineCapture_SharedMem");
+    _shmemFile = OpenFileMappingW(kFileMapRead, 0, L"WorldEngineCapture_SharedMem");
     if (_shmemFile) {
-        _shmemView = MapViewOfFile(_shmemFile, FILE_MAP_READ, 0, 0, 0);
+        _shmemView = MapViewOfFile(_shmemFile, kFileMapRead, 0, 0, 0);
         if (_shmemView)
             SKSE::log::info("[WorldEngineCollector] Shared memory opened — video sync enabled");
         else {
-            CloseHandle(_shmemFile);
+            SKSE::WinAPI::CloseHandle(_shmemFile);
             _shmemFile = nullptr;
             SKSE::log::warn("[WorldEngineCollector] MapViewOfFile failed");
         }
@@ -78,7 +94,7 @@ void FrameCollector::Stop() {
     if (_thread.joinable()) _thread.join();
 
     if (_shmemView) { UnmapViewOfFile(_shmemView); _shmemView = nullptr; }
-    if (_shmemFile) { CloseHandle(_shmemFile);     _shmemFile = nullptr; }
+    if (_shmemFile) { SKSE::WinAPI::CloseHandle(_shmemFile); _shmemFile = nullptr; }
 }
 
 void FrameCollector::OnKeyDown(uint32_t vk) {
