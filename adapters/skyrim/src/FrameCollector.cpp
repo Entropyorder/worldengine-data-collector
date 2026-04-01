@@ -165,7 +165,7 @@ void FrameCollector::CollectLoop() {
         auto* player = RE::PlayerCharacter::GetSingleton();
 
         if (!cam || !player) {
-            std::this_thread::sleep_for(kInterval);
+            std::this_thread::sleep_for(kFallbackInterval);
             continue;
         }
 

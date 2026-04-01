@@ -1,9 +1,9 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 #include <mutex>
 #include <set>
 #include <thread>
-#include <windows.h>
 
 namespace WorldEngine {
 
@@ -44,7 +44,7 @@ private:
     long long _frameIndex{ 0 };
 
     // dx_capture shared memory (video frame sync)
-    HANDLE    _shmemFile{ nullptr };
+    void*     _shmemFile{ nullptr };  // HANDLE — avoids <windows.h> conflict with CommonLibSSE WinAPI
     void*     _shmemView{ nullptr };
     int64_t   _lastDxFrame{ -1 };
 };
