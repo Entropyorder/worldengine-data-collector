@@ -3,6 +3,7 @@
 #include <mutex>
 #include <set>
 #include <thread>
+#include <windows.h>
 
 namespace WorldEngine {
 
@@ -29,7 +30,7 @@ private:
     FrameCollector(const FrameCollector&) = delete;
     FrameCollector& operator=(const FrameCollector&) = delete;
 
-    void CollectLoop();   // runs in _thread at ~30 Hz
+    void CollectLoop();   // runs in _thread
 
     std::thread      _thread;
     std::atomic_bool _running{ false };
@@ -41,6 +42,11 @@ private:
     float                 _accMouseX{ 960 }, _accMouseY{ 540 };
 
     long long _frameIndex{ 0 };
+
+    // dx_capture shared memory (video frame sync)
+    HANDLE    _shmemFile{ nullptr };
+    void*     _shmemView{ nullptr };
+    int64_t   _lastDxFrame{ -1 };
 };
 
 }  // namespace WorldEngine

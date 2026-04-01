@@ -60,6 +60,8 @@ target_include_directories(WorldEngineCollector_Skyrim PRIVATE
     # rapidcsv.h is included transitively through CommonLibSSE headers (e.g. Relocation.h)
     # but CommonLibSSE exposes it PRIVATE only, so we must add it here too.
     "${rapidcsv_SOURCE_DIR}/src"
+    # shared_protocol.h — shared with dx_capture.dll
+    "${PROJECT_SOURCE_DIR}/../../dx_capture/include"
 )
 
 target_link_libraries(WorldEngineCollector_Skyrim

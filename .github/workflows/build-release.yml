@@ -190,6 +190,9 @@ jobs:
           $pluginDir = "dist_skyrim\Data\SKSE\Plugins"
           New-Item -ItemType Directory -Force $pluginDir | Out-Null
           Copy-Item adapters\bin\WorldEngineCollector_Skyrim.dll $pluginDir\
+          # dx_capture.dll + FFmpeg DLLs go to the Skyrim root (same dir as SkyrimSE.exe)
+          Copy-Item adapters\bin\dx_capture.dll dist_skyrim\
+          Copy-Item C:\libs\ffmpeg\bin\*.dll    dist_skyrim\
           Compress-Archive -Path dist_skyrim\* -DestinationPath dist\WorldEngineCollector_Skyrim.zip
           Write-Host "Skyrim plugin packaged"
 

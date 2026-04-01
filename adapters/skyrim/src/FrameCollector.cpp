@@ -4,6 +4,7 @@
 
 #include <RE/Skyrim.h>
 #include <SKSE/SKSE.h>
+#include <shared_protocol.h>
 
 #include <chrono>
 #include <ctime>
@@ -53,6 +54,21 @@ void FrameCollector::Start() {
         devMgr->AddEventSink(InputSink::GetSingleton());
     }
 
+    // Open dx_capture shared memory (may not exist if DLL failed to load)
+    _shmemFile = OpenFileMappingW(FILE_MAP_READ, FALSE, L"WorldEngineCapture_SharedMem");
+    if (_shmemFile) {
+        _shmemView = MapViewOfFile(_shmemFile, FILE_MAP_READ, 0, 0, 0);
+        if (_shmemView)
+            SKSE::log::info("[WorldEngineCollector] Shared memory opened — video sync enabled");
+        else {
+            CloseHandle(_shmemFile);
+            _shmemFile = nullptr;
+            SKSE::log::warn("[WorldEngineCollector] MapViewOfFile failed");
+        }
+    } else {
+        SKSE::log::info("[WorldEngineCollector] Shared memory not available — running at 30 Hz without video sync");
+    }
+
     _thread = std::thread(&FrameCollector::CollectLoop, this);
     SKSE::log::info("[WorldEngineCollector] CollectLoop started");
 }
@@ -60,6 +76,9 @@ void FrameCollector::Start() {
 void FrameCollector::Stop() {
     if (!_running.exchange(false)) return;
     if (_thread.joinable()) _thread.join();
+
+    if (_shmemView) { UnmapViewOfFile(_shmemView); _shmemView = nullptr; }
+    if (_shmemFile) { CloseHandle(_shmemFile);     _shmemFile = nullptr; }
 }
 
 void FrameCollector::OnKeyDown(uint32_t vk) {
@@ -110,14 +129,36 @@ static std::string FloatArr4(const std::array<float,4>& a) {
     return o.str();
 }
 
-// ── Collect loop (~30 Hz, background thread) ──────────────────────────────────
+// ── Collect loop ──────────────────────────────────────────────────────────────
 void FrameCollector::CollectLoop() {
-    constexpr auto kInterval = std::chrono::milliseconds(33);  // ~30 fps
+    constexpr auto kFallbackInterval = std::chrono::milliseconds(33);  // ~30 fps
     auto& writer = TCPWriter::GetSingleton();
     writer.Connect("127.0.0.1", 27015);
 
+    auto lastFallbackEmit = std::chrono::steady_clock::now();
+
     while (_running.load()) {
-        auto start = std::chrono::steady_clock::now();
+
+        // ── Frame sync ────────────────────────────────────────────────────────
+        // If dx_capture is active: emit once per captured video frame.
+        // Otherwise: fall back to ~30 Hz so data still flows.
+        auto* shm = static_cast<const SharedFrameSync*>(_shmemView);
+        if (shm && shm->capture_active) {
+            int64_t dxFrame = shm->frame_index;
+            if (dxFrame == _lastDxFrame) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+            _lastDxFrame = dxFrame;
+            _frameIndex  = dxFrame;
+        } else {
+            auto now = std::chrono::steady_clock::now();
+            if (now - lastFallbackEmit < kFallbackInterval) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+            lastFallbackEmit = now;
+        }
 
         // ── Snapshot game state (CommonLibSSE getters are thread-safe for reads) ──
         auto* cam    = RE::PlayerCamera::GetSingleton();
@@ -237,12 +278,8 @@ void FrameCollector::CollectLoop() {
              << "}";
 
         writer.Send(json.str());
-        _frameIndex++;
-
-        // Sleep remainder of interval
-        auto elapsed = std::chrono::steady_clock::now() - start;
-        if (elapsed < kInterval)
-            std::this_thread::sleep_for(kInterval - elapsed);
+        if (!_shmemView)  // only increment in fallback mode; sync mode uses dxFrame
+            _frameIndex++;
     }
 
     writer.Disconnect();
