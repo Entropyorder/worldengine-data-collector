@@ -28,25 +28,37 @@ logging.basicConfig(
 )
 logging.info("=== WorldEngine Data Collector starting ===")
 
-from PyQt6.QtWidgets import QApplication
-from gui.main_window import MainWindow
-from session_manager import SessionManager
+try:
+    from PyQt6.QtWidgets import QApplication
+    from gui.main_window import MainWindow
+    from session_manager import SessionManager
+except Exception:
+    logging.critical("Import failed — likely missing VC++ runtime or Qt DLL:\n%s",
+                     traceback.format_exc())
+    raise
 
 
 def main() -> None:
+    logging.info("Creating QApplication")
     app = QApplication(sys.argv)
+    logging.info("QApplication created OK")
     app.setApplicationName("WorldEngine Data Collector")
 
+    logging.info("Creating SessionManager")
     sm = SessionManager(SETTINGS_PATH)
+    logging.info("SessionManager OK")
 
+    logging.info("Creating MainWindow")
     window = MainWindow(sm=sm)
+    logging.info("MainWindow OK — calling show()")
     window.show()
+    logging.info("show() returned — entering event loop")
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
+    except BaseException:
         logging.critical("Unhandled exception:\n%s", traceback.format_exc())
         raise
