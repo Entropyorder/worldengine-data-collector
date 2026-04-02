@@ -9,6 +9,7 @@ class SessionLog(QTextEdit):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setMaximumHeight(200)
+        self.setAcceptDrops(False)   # prevent OLE drop-target registration crash on some Win11
 
     def append_line(self, msg: str) -> None:
         self.append(msg)

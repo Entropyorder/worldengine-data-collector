@@ -66,6 +66,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("WorldEngine Data Collector")
         self.setMinimumSize(640, 480)
+        self.setAcceptDrops(False)   # prevent OLE drop-target crash on some Win11 machines
 
         _log.info("MainWindow.__init__: SessionManager")
         self._sm = sm if sm is not None else SessionManager(str(self.SETTINGS_PATH))
