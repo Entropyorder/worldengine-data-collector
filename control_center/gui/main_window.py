@@ -61,31 +61,42 @@ class MainWindow(QMainWindow):
     SETTINGS_PATH    = _APP_DIR    / "config" / "settings.yaml"
 
     def __init__(self, sm: SessionManager | None = None) -> None:
+        import logging as _log
+        _log.info("MainWindow.__init__: super().__init__")
         super().__init__()
         self.setWindowTitle("WorldEngine Data Collector")
         self.setMinimumSize(640, 480)
 
+        _log.info("MainWindow.__init__: SessionManager")
         self._sm = sm if sm is not None else SessionManager(str(self.SETTINGS_PATH))
+        _log.info("MainWindow.__init__: OsdBridge")
         self._osd = OsdBridge()
         self._frame_buffer: FrameBuffer | None = None
         self._transport_server: TransportServer | None = None
+        _log.info("MainWindow.__init__: signals")
         self._signals = _Signals()
         self._signals.log.connect(self._on_log)
         self._signals.stats_updated.connect(self._on_stats)
         self._start_time: datetime | None = None
         self._process_thread: threading.Thread | None = None
 
+        _log.info("MainWindow.__init__: _build_ui")
         self._build_ui()
+        _log.info("MainWindow.__init__: _build_menu_bar")
         self._build_menu_bar()
+        _log.info("MainWindow.__init__: _load_game_list")
         self._load_game_list()
+        _log.info("MainWindow.__init__: _update_start_state")
         self._update_start_state()
+        _log.info("MainWindow.__init__: QTimer")
         self._timer = QTimer(self)
         self._timer.setInterval(500)
         self._timer.timeout.connect(self._poll_stats)
 
-        # Global hotkey F8 — works even when a fullscreen game has focus
+        _log.info("MainWindow.__init__: _register_global_hotkey")
         self._hotkey_registered = False
         self._register_global_hotkey()
+        _log.info("MainWindow.__init__: done")
 
     def _build_ui(self) -> None:
         central = QWidget()
