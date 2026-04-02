@@ -28,8 +28,9 @@ logging.basicConfig(
 )
 logging.info("=== WorldEngine Data Collector starting ===")
 
-# Force Qt software rendering — avoids GPU/OpenGL init crash on some Win11 machines
-os.environ.setdefault("QT_OPENGL", "software")
+# On some Win11 machines the Mesa software renderer (opengl32sw.dll) is absent.
+# Use the system opengl32.dll (desktop OpenGL) instead.
+os.environ.setdefault("QT_OPENGL", "desktop")
 logging.info("QT_OPENGL=%s", os.environ.get("QT_OPENGL"))
 
 try:
