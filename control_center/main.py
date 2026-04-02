@@ -1,11 +1,9 @@
 import sys
 import os
+import logging
+import traceback
 
 sys.path.insert(0, os.path.dirname(__file__))
-
-from PyQt6.QtWidgets import QApplication
-from gui.main_window import MainWindow
-from session_manager import SessionManager
 
 if getattr(sys, "frozen", False):
     _app_dir = os.path.join(
@@ -14,8 +12,25 @@ if getattr(sys, "frozen", False):
     )
     os.makedirs(_app_dir, exist_ok=True)
     SETTINGS_PATH = os.path.join(_app_dir, "settings.yaml")
+    _log_path = os.path.join(_app_dir, "app.log")
 else:
-    SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "config", "settings.yaml")
+    _app_dir = os.path.dirname(__file__)
+    SETTINGS_PATH = os.path.join(_app_dir, "config", "settings.yaml")
+    _log_path = os.path.join(_app_dir, "app.log")
+
+# File log — captures startup crashes that the GUI never gets to show
+logging.basicConfig(
+    filename=_log_path,
+    filemode="a",
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    encoding="utf-8",
+)
+logging.info("=== WorldEngine Data Collector starting ===")
+
+from PyQt6.QtWidgets import QApplication
+from gui.main_window import MainWindow
+from session_manager import SessionManager
 
 
 def main() -> None:
@@ -30,4 +45,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logging.critical("Unhandled exception:\n%s", traceback.format_exc())
+        raise
