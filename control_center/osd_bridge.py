@@ -38,19 +38,30 @@ class OsdBridge:
         """Open existing shared memory created by dx_capture.dll. Returns True on success."""
         if not self._is_windows:
             return False
-        import ctypes.wintypes as wt
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         FILE_MAP_ALL_ACCESS = 0x000F001F
+        # restype must be c_void_p — without it ctypes defaults to c_int (32-bit),
+        # which silently truncates 64-bit pointers on x64 Windows. Writing through
+        # a truncated address causes an ACCESS_VIOLATION crash.
+        kernel32.OpenFileMappingW.restype = ctypes.c_void_p
+        kernel32.MapViewOfFile.restype    = ctypes.c_void_p
         self._handle = kernel32.OpenFileMappingW(FILE_MAP_ALL_ACCESS, False, SHMEM_NAME)
         if not self._handle:
             return False
         self._view = kernel32.MapViewOfFile(self._handle, FILE_MAP_ALL_ACCESS, 0, 0, SHMEM_SIZE)
-        return bool(self._view)
+        if not self._view:
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle(self._handle)
+            self._handle = None
+            return False
+        return True
 
     def close(self) -> None:
         if not self._is_windows:
             return
         kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.argtypes     = [ctypes.c_void_p]
         if self._view:
             kernel32.UnmapViewOfFile(self._view)
             self._view = None
