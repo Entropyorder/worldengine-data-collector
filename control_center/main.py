@@ -28,6 +28,10 @@ logging.basicConfig(
 )
 logging.info("=== WorldEngine Data Collector starting ===")
 
+# Force Qt software rendering — avoids GPU/OpenGL init crash on some Win11 machines
+os.environ.setdefault("QT_OPENGL", "software")
+logging.info("QT_OPENGL=%s", os.environ.get("QT_OPENGL"))
+
 try:
     from PyQt6.QtWidgets import QApplication
     from gui.main_window import MainWindow
