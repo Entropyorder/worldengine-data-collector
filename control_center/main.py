@@ -35,6 +35,7 @@ logging.info("=== WorldEngine Data Collector starting ===")
 
 try:
     from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
     from gui.main_window import MainWindow
     from session_manager import SessionManager
 except Exception:
@@ -43,10 +44,26 @@ except Exception:
     raise
 
 
+def _qt_log_handler(mode, context, message: str) -> None:
+    """Forward all Qt internal messages to the file log before any C-level abort."""
+    if mode == QtMsgType.QtFatalMsg:
+        logging.critical("Qt FATAL [%s:%s %s]: %s",
+                         context.file, context.line, context.function, message)
+        logging.shutdown()   # flush to disk before Qt calls abort()
+    elif mode == QtMsgType.QtCriticalMsg:
+        logging.error("Qt Critical: %s", message)
+    elif mode == QtMsgType.QtWarningMsg:
+        logging.warning("Qt Warning: %s", message)
+    else:
+        logging.debug("Qt: %s", message)
+
+
 def main() -> None:
     logging.info("Creating QApplication")
     app = QApplication(sys.argv)
-    logging.info("QApplication created OK")
+    # Install handler immediately so all Qt warnings/fatals go to the log file
+    qInstallMessageHandler(_qt_log_handler)
+    logging.info("QApplication created OK — Qt message handler installed")
     app.setApplicationName("WorldEngine Data Collector")
 
     logging.info("Creating SessionManager")
@@ -56,8 +73,12 @@ def main() -> None:
     logging.info("Creating MainWindow")
     window = MainWindow(sm=sm)
     logging.info("MainWindow OK — calling show()")
-    window.show()
-    logging.info("show() returned — entering event loop")
+    try:
+        window.show()
+        logging.info("show() returned — entering event loop")
+    except Exception:
+        logging.critical("show() raised Python exception:\n%s", traceback.format_exc())
+        raise
     sys.exit(app.exec())
 
 
