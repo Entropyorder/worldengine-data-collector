@@ -2,6 +2,7 @@ import sys
 import os
 import logging
 import traceback
+import faulthandler
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -13,6 +14,7 @@ if getattr(sys, "frozen", False):
     os.makedirs(_app_dir, exist_ok=True)
     SETTINGS_PATH = os.path.join(_app_dir, "settings.yaml")
     _log_path = os.path.join(_app_dir, "app.log")
+    _fault_path = os.path.join(_app_dir, "crash.log")
     # PyInstaller --onefile extracts DLLs to _MEIPASS; Qt looks for opengl32sw.dll
     # relative to the EXE, not _MEIPASS — prepend so Qt's dynamic OpenGL fallback works.
     _meipass = getattr(sys, "_MEIPASS", None)
@@ -22,6 +24,11 @@ else:
     _app_dir = os.path.dirname(__file__)
     SETTINGS_PATH = os.path.join(_app_dir, "config", "settings.yaml")
     _log_path = os.path.join(_app_dir, "app.log")
+    _fault_path = os.path.join(_app_dir, "crash.log")
+
+# faulthandler catches native segfaults / access violations and writes to crash.log
+_fault_file = open(_fault_path, "a", encoding="utf-8")
+faulthandler.enable(_fault_file)
 
 # File log — captures startup crashes that the GUI never gets to show
 logging.basicConfig(
@@ -32,6 +39,7 @@ logging.basicConfig(
     encoding="utf-8",
 )
 logging.info("=== WorldEngine Data Collector starting ===")
+logging.info("crash.log: %s", _fault_path)
 
 try:
     from PyQt6.QtWidgets import QApplication
