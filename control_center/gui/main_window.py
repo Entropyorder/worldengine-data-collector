@@ -342,6 +342,12 @@ class MainWindow(QMainWindow):
                 winsound.Beep(freq, ms)
         threading.Thread(target=_do, daemon=True).start()
 
+    def showEvent(self, event) -> None:
+        import logging as _log
+        _log.info("showEvent: entered")
+        super().showEvent(event)
+        _log.info("showEvent: returned")
+
     def _on_log(self, msg: str) -> None:
         self._log.append_line(msg)
 

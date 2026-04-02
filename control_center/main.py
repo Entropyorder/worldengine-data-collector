@@ -39,6 +39,9 @@ logging.basicConfig(
     encoding="utf-8",
 )
 logging.info("=== WorldEngine Data Collector starting ===")
+# Disable DirectWrite font engine — on some Win10/11 machines Qt6's DirectWrite
+# renderer calls qFatal() during the first window paint, causing STATUS_FATAL_APP_EXIT.
+os.environ.setdefault("QT_QPA_PLATFORM", "windows:nodirectwrite")
 logging.info("crash.log: %s", _fault_path)
 
 try:
