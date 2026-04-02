@@ -13,6 +13,11 @@ if getattr(sys, "frozen", False):
     os.makedirs(_app_dir, exist_ok=True)
     SETTINGS_PATH = os.path.join(_app_dir, "settings.yaml")
     _log_path = os.path.join(_app_dir, "app.log")
+    # PyInstaller --onefile extracts DLLs to _MEIPASS; Qt looks for opengl32sw.dll
+    # relative to the EXE, not _MEIPASS — prepend so Qt's dynamic OpenGL fallback works.
+    _meipass = getattr(sys, "_MEIPASS", None)
+    if _meipass:
+        os.environ["PATH"] = _meipass + os.pathsep + os.environ.get("PATH", "")
 else:
     _app_dir = os.path.dirname(__file__)
     SETTINGS_PATH = os.path.join(_app_dir, "config", "settings.yaml")
@@ -27,11 +32,6 @@ logging.basicConfig(
     encoding="utf-8",
 )
 logging.info("=== WorldEngine Data Collector starting ===")
-
-# On some Win11 machines the Mesa software renderer (opengl32sw.dll) is absent.
-# Use the system opengl32.dll (desktop OpenGL) instead.
-os.environ.setdefault("QT_OPENGL", "desktop")
-logging.info("QT_OPENGL=%s", os.environ.get("QT_OPENGL"))
 
 try:
     from PyQt6.QtWidgets import QApplication
