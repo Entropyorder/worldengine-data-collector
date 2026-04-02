@@ -88,6 +88,18 @@ void FrameCollector::Stop() {
     if (!_running.exchange(false)) return;
     if (_thread.joinable()) _thread.join();
 
+    // Restore HUD if it was hidden when recording was interrupted
+    if (_hudHidden) {
+        _hudHidden = false;
+        if (auto* taskIf = SKSE::GetTaskInterface()) {
+            taskIf->AddTask([]() {
+                if (auto* q = RE::UIMessageQueue::GetSingleton())
+                    q->AddMessage(RE::HUDMenu::MENU_NAME,
+                                  RE::UI_MESSAGE_TYPE::kShow, nullptr);
+            });
+        }
+    }
+
     if (_shmemView) { UnmapViewOfFile(_shmemView); _shmemView = nullptr; }
     if (_shmemFile) { CloseHandle(_shmemFile); _shmemFile = nullptr; }
 }
@@ -195,6 +207,29 @@ void FrameCollector::CollectLoop() {
                 continue;
             }
             lastFallbackEmit = now;
+        }
+
+        // ── HUD auto-hide ─────────────────────────────────────────────────────
+        // Toggle "HUD Menu" visibility whenever capture_active changes state.
+        // AddTask schedules the UI call on the main game thread (thread-safe).
+        {
+            int32_t curActive = (shm && shm->capture_active) ? 1 : 0;
+            if (curActive != _lastCaptureActive) {
+                _lastCaptureActive = curActive;
+                _hudHidden = (curActive == 1);
+                const bool hide = _hudHidden;
+                if (auto* taskIf = SKSE::GetTaskInterface()) {
+                    taskIf->AddTask([hide]() {
+                        if (auto* q = RE::UIMessageQueue::GetSingleton()) {
+                            q->AddMessage(
+                                RE::HUDMenu::MENU_NAME,
+                                hide ? RE::UI_MESSAGE_TYPE::kHide
+                                     : RE::UI_MESSAGE_TYPE::kShow,
+                                nullptr);
+                        }
+                    });
+                }
+            }
         }
 
         // ── Snapshot game state (CommonLibSSE getters are thread-safe for reads) ──

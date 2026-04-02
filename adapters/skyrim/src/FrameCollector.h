@@ -47,6 +47,10 @@ private:
     void*     _shmemFile{ nullptr };  // HANDLE — avoids <windows.h> conflict with CommonLibSSE WinAPI
     void*     _shmemView{ nullptr };
     int64_t   _lastDxFrame{ -1 };
+
+    // HUD auto-hide: track last known capture_active so we only toggle on transitions
+    int32_t   _lastCaptureActive{ -1 };   // -1 = uninitialized
+    bool      _hudHidden{ false };
 };
 
 }  // namespace WorldEngine
