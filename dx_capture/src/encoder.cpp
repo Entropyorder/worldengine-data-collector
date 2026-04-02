@@ -1,5 +1,4 @@
 #include "encoder.h"
-#include <cctype>
 #include <cstdio>
 
 bool Encoder::Start(const std::string& outputPath, UINT width, UINT height, int fps)
@@ -7,20 +6,13 @@ bool Encoder::Start(const std::string& outputPath, UINT width, UINT height, int 
     _width  = width;
     _height = height;
 
-    // Allowlist: permit only characters expected in a Windows absolute path
-    for (char c : outputPath) {
-        if (!isalnum(static_cast<unsigned char>(c)) &&
-            c != '_' && c != '-' && c != '.' && c != ':' &&
-            c != '\\' && c != '/' && c != ' ') {
-            OutputDebugStringA("[dx_capture] Encoder::Start: invalid char in output path\n");
-            return false;
-        }
-    }
-
     char cmd[2048];
+    // Use libx264 (software) — portable across all GPUs.
+    // h264_nvenc requires NVIDIA NVENC and silently fails on AMD/Intel.
+    // 2>NUL suppresses ffmpeg console output; errors surface via _popen returning NULL.
     snprintf(cmd, sizeof(cmd),
         "ffmpeg -y -f rawvideo -pixel_format bgra -video_size %ux%u -framerate %d "
-        "-i pipe:0 -c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p "
+        "-i pipe:0 -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p "
         "-movflags +faststart \"%s\" 2>NUL",
         width, height, fps, outputPath.c_str());
 
