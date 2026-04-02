@@ -156,9 +156,9 @@ static std::string FloatArr4(const std::array<float,4>& a) {
 // Convert NiMatrix3 (row vectors) to NiQuaternion using Shepperd's method.
 // NiMatrix3::entry[row].{x,y,z} = column 0,1,2 of that row.
 static RE::NiQuaternion MatToQuat(const RE::NiMatrix3& m) {
-    float m00 = m.entry[0].x, m01 = m.entry[0].y, m02 = m.entry[0].z;
-    float m10 = m.entry[1].x, m11 = m.entry[1].y, m12 = m.entry[1].z;
-    float m20 = m.entry[2].x, m21 = m.entry[2].y, m22 = m.entry[2].z;
+    float m00 = m.entry[0][0], m01 = m.entry[0][1], m02 = m.entry[0][2];
+    float m10 = m.entry[1][0], m11 = m.entry[1][1], m12 = m.entry[1][2];
+    float m20 = m.entry[2][0], m21 = m.entry[2][1], m22 = m.entry[2][2];
     float trace = m00 + m11 + m22;
     float w, x, y, z;
     if (trace > 0.0f) {
