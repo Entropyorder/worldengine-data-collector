@@ -95,7 +95,11 @@ class MainWindow(QMainWindow):
 
         _log.info("MainWindow.__init__: _register_global_hotkey")
         self._hotkey_registered = False
-        self._register_global_hotkey()
+        # Defer registration until after the event loop starts (window shown,
+        # native HWND fully valid). Calling winId() during __init__ crashes on
+        # some Win11 machines before show() is called.
+        from PyQt6.QtCore import QTimer as _QTimer
+        _QTimer.singleShot(0, self._register_global_hotkey)
         _log.info("MainWindow.__init__: done")
 
     def _build_ui(self) -> None:
@@ -293,14 +297,26 @@ class MainWindow(QMainWindow):
 
     def _register_global_hotkey(self) -> None:
         """Register F8 as a system-wide hotkey via Win32 RegisterHotKey.
-        The hotkey fires even when a fullscreen game has focus."""
+        The hotkey fires even when a fullscreen game has focus.
+        Called via QTimer.singleShot(0) so the native HWND is valid."""
         if platform.system() != "Windows":
             return
-        user32 = ctypes.WinDLL("user32", use_last_error=True)
-        if user32.RegisterHotKey(int(self.winId()), _HOTKEY_ID, 0, _HOTKEY_VK):
-            self._hotkey_registered = True
-        else:
-            self._signals.log.emit("[WARN] 全局快捷键 F8 注册失败（可能被其他程序占用）")
+        try:
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.RegisterHotKey.argtypes = [
+                ctypes.c_void_p,   # HWND  (64-bit safe)
+                ctypes.c_int,      # id
+                ctypes.c_uint,     # fsModifiers
+                ctypes.c_uint,     # vk
+            ]
+            user32.RegisterHotKey.restype = ctypes.c_bool
+            hwnd = int(self.winId())
+            if user32.RegisterHotKey(hwnd, _HOTKEY_ID, 0, _HOTKEY_VK):
+                self._hotkey_registered = True
+            else:
+                self._signals.log.emit("[WARN] 全局快捷键 F8 注册失败（可能被其他程序占用）")
+        except Exception as e:
+            self._signals.log.emit(f"[WARN] 全局快捷键注册异常: {e}")
 
     def nativeEvent(self, event_type: bytes, message) -> tuple[bool, int]:
         """Intercept WM_HOTKEY to toggle recording from any foreground window."""
