@@ -1,5 +1,7 @@
 from __future__ import annotations
+import ctypes
 import os
+import platform
 import sys
 import threading
 import yaml
@@ -22,6 +24,23 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QKeySequence, QShortcut
+
+# ── Global hotkey constants (Windows only) ────────────────────────────────────
+_WM_HOTKEY   = 0x0312
+_HOTKEY_ID   = 1
+_HOTKEY_VK   = 0x77   # VK_F8 — almost unused in PC games; works in fullscreen
+
+class _WinMSG(ctypes.Structure):
+    """Minimal Windows MSG struct for WM_HOTKEY detection in nativeEvent."""
+    _fields_ = [
+        ("hwnd",    ctypes.c_size_t),
+        ("message", ctypes.c_uint32),
+        ("wParam",  ctypes.c_size_t),
+        ("lParam",  ctypes.c_ssize_t),
+        ("time",    ctypes.c_uint32),
+        ("pt_x",    ctypes.c_int32),
+        ("pt_y",    ctypes.c_int32),
+    ]
 
 from gui.session_log import SessionLog
 from session_manager import SessionManager, SessionState
@@ -64,9 +83,9 @@ class MainWindow(QMainWindow):
         self._timer.setInterval(500)
         self._timer.timeout.connect(self._poll_stats)
 
-        # F9 hotkey
-        shortcut = QShortcut(QKeySequence("F9"), self)
-        shortcut.activated.connect(self._toggle_recording)
+        # Global hotkey F8 — works even when a fullscreen game has focus
+        self._hotkey_registered = False
+        self._register_global_hotkey()
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -105,7 +124,7 @@ class MainWindow(QMainWindow):
 
         # Buttons
         btn_row = QHBoxLayout()
-        self._btn_start = QPushButton("开始录制 (F9)")
+        self._btn_start = QPushButton("开始录制 (F8)")
         self._btn_start.setMinimumHeight(40)
         self._btn_start.clicked.connect(self._toggle_recording)
         btn_row.addWidget(self._btn_start)
@@ -208,12 +227,14 @@ class MainWindow(QMainWindow):
 
         self._start_time = datetime.now()
         self._timer.start()
-        self._btn_start.setText("停止录制 (F9)")
+        self._btn_start.setText("停止录制 (F8)")
         self._lbl_status.setText("录制中")
         self._lbl_status.setStyleSheet("color: red; font-weight: bold;")
         self._signals.log.emit(f"[录制开始] {session_dir.name}")
+        self._play_beep([(600, 100), (1000, 180)])  # 上升双音 → 开始
 
     def _stop_recording(self) -> None:
+        self._play_beep([(1000, 100), (600, 180)])  # 下降双音 → 停止
         self._osd.set_capture_active(False)
         self._osd.close()
         if self._transport_server:
@@ -259,6 +280,41 @@ class MainWindow(QMainWindow):
         mins, secs = divmod(int(elapsed.total_seconds()), 60)
         self._signals.stats_updated.emit(frames, fps, f"{mins:02d}:{secs:02d}")
 
+    def _register_global_hotkey(self) -> None:
+        """Register F8 as a system-wide hotkey via Win32 RegisterHotKey.
+        The hotkey fires even when a fullscreen game has focus."""
+        if platform.system() != "Windows":
+            return
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        if user32.RegisterHotKey(int(self.winId()), _HOTKEY_ID, 0, _HOTKEY_VK):
+            self._hotkey_registered = True
+        else:
+            self._signals.log.emit("[WARN] 全局快捷键 F8 注册失败（可能被其他程序占用）")
+
+    def nativeEvent(self, event_type: bytes, message) -> tuple[bool, int]:
+        """Intercept WM_HOTKEY to toggle recording from any foreground window."""
+        if (platform.system() == "Windows"
+                and event_type == b"windows_generic_MSG"):
+            try:
+                msg = ctypes.cast(int(message), ctypes.POINTER(_WinMSG)).contents
+                if msg.message == _WM_HOTKEY and msg.wParam == _HOTKEY_ID:
+                    self._toggle_recording()
+                    return True, 0
+            except Exception:
+                pass
+        return super().nativeEvent(event_type, message)
+
+    @staticmethod
+    def _play_beep(freqs: list[tuple[int, int]]) -> None:
+        """Play a sequence of (freq_hz, duration_ms) tones in a background thread."""
+        if platform.system() != "Windows":
+            return
+        def _do() -> None:
+            import winsound
+            for freq, ms in freqs:
+                winsound.Beep(freq, ms)
+        threading.Thread(target=_do, daemon=True).start()
+
     def _on_log(self, msg: str) -> None:
         self._log.append_line(msg)
 
@@ -286,6 +342,8 @@ class MainWindow(QMainWindow):
         self._open_setup_dialog()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._hotkey_registered and platform.system() == "Windows":
+            ctypes.WinDLL("user32").UnregisterHotKey(int(self.winId()), _HOTKEY_ID)
         if self._sm.state == SessionState.RECORDING:
             self._stop_recording()
         if self._process_thread and self._process_thread.is_alive():

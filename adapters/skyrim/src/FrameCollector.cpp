@@ -140,6 +140,32 @@ static std::string FloatArr4(const std::array<float,4>& a) {
     return o.str();
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+// Convert NiMatrix3 (row vectors) to NiQuaternion using Shepperd's method.
+// NiMatrix3::entry[row].{x,y,z} = column 0,1,2 of that row.
+static RE::NiQuaternion MatToQuat(const RE::NiMatrix3& m) {
+    float m00 = m.entry[0].x, m01 = m.entry[0].y, m02 = m.entry[0].z;
+    float m10 = m.entry[1].x, m11 = m.entry[1].y, m12 = m.entry[1].z;
+    float m20 = m.entry[2].x, m21 = m.entry[2].y, m22 = m.entry[2].z;
+    float trace = m00 + m11 + m22;
+    float w, x, y, z;
+    if (trace > 0.0f) {
+        float s = 0.5f / std::sqrt(trace + 1.0f);
+        w = 0.25f / s; x = (m21-m12)*s; y = (m02-m20)*s; z = (m10-m01)*s;
+    } else if (m00 > m11 && m00 > m22) {
+        float s = 2.0f * std::sqrt(1.0f + m00 - m11 - m22);
+        w = (m21-m12)/s; x = 0.25f*s; y = (m01+m10)/s; z = (m02+m20)/s;
+    } else if (m11 > m22) {
+        float s = 2.0f * std::sqrt(1.0f + m11 - m00 - m22);
+        w = (m02-m20)/s; x = (m01+m10)/s; y = 0.25f*s; z = (m12+m21)/s;
+    } else {
+        float s = 2.0f * std::sqrt(1.0f + m22 - m00 - m11);
+        w = (m10-m01)/s; x = (m02+m20)/s; y = (m12+m21)/s; z = 0.25f*s;
+    }
+    RE::NiQuaternion q; q.w = w; q.x = x; q.y = y; q.z = z;
+    return q;
+}
+
 // ── Collect loop ──────────────────────────────────────────────────────────────
 void FrameCollector::CollectLoop() {
     constexpr auto kFallbackInterval = std::chrono::milliseconds(33);  // ~30 fps
@@ -181,12 +207,18 @@ void FrameCollector::CollectLoop() {
         }
 
         // Camera position + orientation
-        auto* camState = cam->currentState.get();
-        RE::NiPoint3    camPos{};
-        RE::NiQuaternion camRot{};
-        if (camState) {
-            camState->GetTranslation(camPos);
-            camState->GetRotation(camRot);
+        // camState->GetTranslation() returns the camera pivot near the player's
+        // head — NOT the offset third-person camera position.
+        // cam->cameraRoot->world.translate is the actual camera world position
+        // after all zoom / shoulder-offset adjustments are applied.
+        RE::NiPoint3     camPos{};
+        RE::NiQuaternion camRot{ 0.0f, 0.0f, 0.0f, 1.0f };
+        {
+            auto* camNode = cam->cameraRoot.get();
+            if (camNode) {
+                camPos = camNode->world.translate;
+                camRot = MatToQuat(camNode->world.rotate);
+            }
         }
 
         // Player position + orientation
@@ -274,7 +306,7 @@ void FrameCollector::CollectLoop() {
                  << "\"cy\":" << intr.cy
              << "},"
              << "\"player_position\":"              << FloatArr3(pPos)  << ","
-             << "\"player_rotation_eule\":["
+             << "\"player_rotation_euler\":["
                  << pitch << "," << yaw << "," << roll
              << "],"
              << "\"player_rotation_quaternion\":"   << FloatArr4(pQuat) << ","
