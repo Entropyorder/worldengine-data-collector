@@ -7,15 +7,12 @@ import faulthandler
 sys.path.insert(0, os.path.dirname(__file__))
 
 if getattr(sys, "frozen", False):
-    _app_dir = os.path.join(
-        os.environ.get("APPDATA", os.path.expanduser("~")),
-        "WorldEngineDataCollector",
-    )
-    os.makedirs(_app_dir, exist_ok=True)
+    # 绿色版：所有文件存放在 EXE 同目录下
+    _app_dir = os.path.dirname(sys.executable)
     SETTINGS_PATH = os.path.join(_app_dir, "settings.yaml")
     _log_path  = os.path.join(_app_dir, "app.log")
     _fault_path = os.path.join(_app_dir, "crash.log")
-    # PyInstaller --onefile extracts to _MEIPASS; prepend so Qt finds opengl32sw.dll
+    # Prepend _MEIPASS so Qt finds bundled DLLs (opengl32sw.dll etc.)
     _meipass = getattr(sys, "_MEIPASS", None)
     if _meipass:
         os.environ["PATH"] = _meipass + os.pathsep + os.environ.get("PATH", "")

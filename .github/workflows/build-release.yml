@@ -144,6 +144,7 @@ jobs:
           # crashes on some Win11 machines when code is loaded from a temp path.
           $cmd = "pyinstaller " +
             "--onedir --windowed " +
+            "--uac-admin " +
             "--name WorldEngineDataCollector " +
             "--collect-all PyQt6 " +
             "--add-data `"control_center/gui;gui`" " +

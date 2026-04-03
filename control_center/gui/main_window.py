@@ -58,7 +58,7 @@ class _Signals(QObject):
 
 class MainWindow(QMainWindow):
     GAMES_CONFIG_DIR = _BUNDLE_DIR / "config" / "games"
-    SETTINGS_PATH    = _APP_DIR    / "config" / "settings.yaml"
+    SETTINGS_PATH    = _APP_DIR    / "settings.yaml"
 
     def __init__(self, sm: SessionManager | None = None) -> None:
         import logging as _log
