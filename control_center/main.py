@@ -67,6 +67,11 @@ except Exception:
     logging.critical("Import failed:\n%s", traceback.format_exc())
     raise
 
+# IAT-patch CoCreateFreeThreadedMarshaler + RegisterDragDrop in Qt6Gui.dll
+# MUST run after PyQt6 import (which loads Qt6Gui.dll) but before QApplication.
+import _fix_win_ole
+_fix_win_ole.apply()
+
 
 # ── Qt message handler: writes EVERY Qt message to disk with fsync ────────────
 # Uses direct file I/O + os.fsync so data is on disk before FatalAppExit() fires.
