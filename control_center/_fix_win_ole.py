@@ -207,6 +207,49 @@ def apply() -> None:
             break
         _patch_dll(dll_name, proc, remaining, target_stubs)
 
+    # Inline hook fallback: for any function still unpatched after IAT scan
+    # (e.g. CoCreateFreeThreadedMarshaler loaded via GetProcAddress at runtime).
+    # x64: MOV RAX, <stub_addr> (10 bytes) + JMP RAX (2 bytes) = 12 bytes
+    PAGE_EXECUTE_READWRITE = 0x40
+    for fn_name in list(remaining):
+        dll_name_for_fn = {
+            b"CoCreateFreeThreadedMarshaler": "ole32.dll",
+            b"RegisterDragDrop":              "ole32.dll",
+        }.get(fn_name)
+        if not dll_name_for_fn:
+            _log.warning("_fix_win_ole: no DLL known for %s, skipping inline hook",
+                         fn_name.decode())
+            continue
+        try:
+            dll = ctypes.WinDLL(dll_name_for_fn)
+            fn_ptr = ctypes.cast(
+                getattr(dll, fn_name.decode()),
+                ctypes.c_void_p,
+            ).value
+            if not fn_ptr:
+                _log.warning("_fix_win_ole: GetProcAddress returned NULL for %s",
+                             fn_name.decode())
+                continue
+            stub_addr = target_stubs[fn_name]
+            patch = b'\x48\xB8' + struct.pack('<Q', stub_addr) + b'\xFF\xE0'
+            old_prot = ctypes.c_uint32(0)
+            if ctypes.windll.kernel32.VirtualProtect(
+                    ctypes.c_void_p(fn_ptr), len(patch),
+                    PAGE_EXECUTE_READWRITE, ctypes.byref(old_prot)):
+                ctypes.memmove(fn_ptr, patch, len(patch))
+                ctypes.windll.kernel32.VirtualProtect(
+                    ctypes.c_void_p(fn_ptr), len(patch),
+                    old_prot, ctypes.byref(old_prot))
+                remaining.discard(fn_name)
+                _log.info("_fix_win_ole: inline-patched %s @ 0x%x → stub 0x%x",
+                          fn_name.decode(), fn_ptr, stub_addr)
+            else:
+                _log.warning("_fix_win_ole: VirtualProtect(RWX) failed for %s @ 0x%x",
+                             fn_name.decode(), fn_ptr)
+        except Exception as exc:
+            _log.warning("_fix_win_ole: inline hook failed for %s: %s",
+                         fn_name.decode(), exc)
+
     for fn in remaining:
         _log.warning("_fix_win_ole: FAILED to patch %s", fn.decode())
 
