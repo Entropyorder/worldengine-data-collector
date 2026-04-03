@@ -14,8 +14,10 @@ threaded marshaler" case gracefully.
 Call apply() AFTER importing PyQt6 (which loads Qt6Gui.dll) but BEFORE
 creating QApplication.
 
-Memory reads use ReadProcessMemory (never from_address) so that a bad address
-returns None rather than causing a C-level ACCESS_VIOLATION.
+Memory reads use ReadProcessMemory (never bare from_address) so that a bad
+address returns None rather than causing a C-level ACCESS_VIOLATION.
+The address-based scan handles cases where Qt6Gui.dll imports these functions
+from combase.dll instead of ole32.dll (common on Windows 10/11).
 """
 from __future__ import annotations
 import ctypes
@@ -30,8 +32,10 @@ _STUBS: list = []
 
 
 def _rpmem(proc: int, addr: int, size: int) -> bytes | None:
-    """Read `size` bytes at `addr` in `proc` via ReadProcessMemory.
-    Returns None on any failure instead of crashing."""
+    """Read `size` bytes at `addr` via ReadProcessMemory.
+    Returns None on any failure — never raises or crashes."""
+    if size <= 0:
+        return b""
     buf = (ctypes.c_char * size)()
     nread = ctypes.c_size_t(0)
     ok = ctypes.windll.kernel32.ReadProcessMemory(
@@ -82,118 +86,108 @@ def apply() -> None:
 
     _STUBS.extend([_stub_ftm, _stub_rdd])
 
-    stub_for: dict[bytes, int] = {
-        b"CoCreateFreeThreadedMarshaler": ctypes.cast(_stub_ftm, ctypes.c_void_p).value or 0,
-        b"RegisterDragDrop":              ctypes.cast(_stub_rdd, ctypes.c_void_p).value or 0,
-    }
-    remaining = set(stub_for.keys())
+    # ── Get real addresses from ole32.dll ─────────────────────────────────────
+    # GetProcAddress follows forwarder chains (ole32 → combase on Win10+),
+    # so these addresses match whatever Qt6Gui.dll's IAT actually contains
+    # at runtime, regardless of which DLL Qt was linked against.
+    ole32 = ctypes.WinDLL("ole32.dll")
+    targets: dict[int, tuple[str, int]] = {}
+    for fn_name, stub in [
+        ("CoCreateFreeThreadedMarshaler", _stub_ftm),
+        ("RegisterDragDrop",              _stub_rdd),
+    ]:
+        real_addr = ctypes.cast(getattr(ole32, fn_name), ctypes.c_void_p).value
+        stub_addr = ctypes.cast(stub, ctypes.c_void_p).value
+        if real_addr and stub_addr:
+            targets[real_addr] = (fn_name, stub_addr)
+            _log.info("_fix_win_ole: target %s @ 0x%x", fn_name, real_addr)
 
-    # ── Parse DOS header ──────────────────────────────────────────────────────
+    if not targets:
+        _log.warning("_fix_win_ole: could not resolve ole32 targets")
+        return
+
+    # ── Read SizeOfImage from PE header (safe via ReadProcessMemory) ──────────
+    size_of_image = 32 * 1024 * 1024  # conservative fallback: 32 MB
     dos = _rpmem(proc, base, 0x40)
-    if dos is None or dos[:2] != b'MZ':
-        _log.warning("_fix_win_ole: bad DOS header at 0x%x", base)
-        return
+    if dos and dos[:2] == b'MZ':
+        e_lfanew = struct.unpack_from('<I', dos, 0x3C)[0]
+        # SizeOfImage is at optional-header+0x38 for both PE32 and PE32+
+        opt_data = _rpmem(proc, base + e_lfanew + 24, 0x3C)
+        if opt_data and len(opt_data) >= 0x3C:
+            magic = struct.unpack_from('<H', opt_data)[0]
+            if magic in (0x010B, 0x020B):
+                size_of_image = struct.unpack_from('<I', opt_data, 0x38)[0]
+                _log.info("_fix_win_ole: SizeOfImage=0x%x", size_of_image)
 
-    e_lfanew = struct.unpack_from('<I', dos, 0x3C)[0]
+    # ── Scan module pages for IAT pointer values ──────────────────────────────
+    # VirtualQuery identifies readable committed regions; ReadProcessMemory reads
+    # the entire region into a Python bytes buffer for safe address comparison.
+    class _MBI(ctypes.Structure):
+        _fields_ = [
+            ("BaseAddress",       ctypes.c_uint64),
+            ("AllocationBase",    ctypes.c_uint64),
+            ("AllocationProtect", ctypes.c_uint32),
+            ("_pad1",             ctypes.c_uint32),
+            ("RegionSize",        ctypes.c_uint64),
+            ("State",             ctypes.c_uint32),
+            ("Protect",           ctypes.c_uint32),
+            ("Type",              ctypes.c_uint32),
+            ("_pad2",             ctypes.c_uint32),
+        ]
 
-    pe_sig = _rpmem(proc, base + e_lfanew, 4)
-    if pe_sig != b'PE\x00\x00':
-        _log.warning("_fix_win_ole: bad PE signature")
-        return
+    PAGE_SIZE      = 0x1000
+    PAGE_READWRITE = 0x04
+    MEM_COMMIT     = 0x1000
 
-    # Optional header starts at e_lfanew + 24 (4-byte sig + 20-byte COFF header)
-    opt_hdr = _rpmem(proc, base + e_lfanew + 24, 2)
-    if opt_hdr is None:
-        return
-    magic = struct.unpack_from('<H', opt_hdr)[0]
-    if magic == 0x010B:     # PE32
-        import_dir_rva_off = e_lfanew + 24 + 0x68
-        ptr_size = 4
-    elif magic == 0x020B:   # PE32+ (64-bit)
-        import_dir_rva_off = e_lfanew + 24 + 0x78
-        ptr_size = 8
-    else:
-        _log.warning("_fix_win_ole: unknown PE magic 0x%04x", magic)
-        return
+    remaining = set(targets.keys())
+    offset = 0
 
-    idd = _rpmem(proc, base + import_dir_rva_off, 8)
-    if idd is None:
-        _log.warning("_fix_win_ole: could not read import data directory")
-        return
-    import_rva, _ = struct.unpack_from('<II', idd)
-    if import_rva == 0:
-        _log.warning("_fix_win_ole: import directory RVA is zero")
-        return
-
-    # ── Walk IMAGE_IMPORT_DESCRIPTOR array (20 bytes each) ───────────────────
-    desc_rva = import_rva
-    found_ole32 = False
-    while remaining:
-        desc = _rpmem(proc, base + desc_rva, 20)
-        if desc is None:
-            break
-        orig_thunk_rva, _, _, name_rva, first_thunk_rva = struct.unpack_from('<IIIII', desc)
-        if orig_thunk_rva == 0 and name_rva == 0:
-            break  # null terminator — end of import table
-
-        dll_name_buf = _rpmem(proc, base + name_rva, 32)
-        dll_name = (dll_name_buf or b"").split(b'\x00')[0].lower()
-        if dll_name != b"ole32.dll":
-            desc_rva += 20
+    while offset < size_of_image and remaining:
+        mbi = _MBI()
+        if not ctypes.windll.kernel32.VirtualQuery(
+                ctypes.c_void_p(base + offset),
+                ctypes.byref(mbi),
+                ctypes.sizeof(mbi)):
+            offset += PAGE_SIZE
             continue
 
-        found_ole32 = True
-        _log.info("_fix_win_ole: found ole32.dll import descriptor")
+        region = int(mbi.RegionSize)
+        is_committed = (mbi.State == MEM_COMMIT)
+        prot = mbi.Protect
+        # Skip PAGE_NOACCESS (0x01), unprotected (0x00), and GUARD pages (0x100)
+        is_readable = is_committed and prot not in (0x00, 0x01) and not (prot & 0x100)
 
-        # Walk import name table (OriginalFirstThunk) and IAT (FirstThunk) in parallel
-        thunk_rva = orig_thunk_rva if orig_thunk_rva else first_thunk_rva
-        ordinal_flag = 0x8000000000000000 if ptr_size == 8 else 0x80000000
-        fmt = '<Q' if ptr_size == 8 else '<I'
-
-        idx = 0
-        while remaining:
-            thunk_data = _rpmem(proc, base + thunk_rva + idx * ptr_size, ptr_size)
-            if thunk_data is None:
-                break
-            thunk_val = struct.unpack_from(fmt, thunk_data)[0]
-            if thunk_val == 0:
-                break  # end of this DLL's import list
-
-            if not (thunk_val & ordinal_flag):
-                # IMAGE_IMPORT_BY_NAME: 2-byte hint then null-terminated name
-                by_name = _rpmem(proc, base + (thunk_val & ~ordinal_flag) + 2, 64)
-                if by_name:
-                    fn_name = by_name.split(b'\x00')[0]
-                    if fn_name in remaining:
-                        iat_entry_addr = base + first_thunk_rva + idx * ptr_size
+        if is_readable:
+            scan_len = min(region, size_of_image - offset)
+            # Read the entire region at once — safe, returns None if any error
+            region_data = _rpmem(proc, base + offset, scan_len)
+            if region_data:
+                for off in range(0, len(region_data) - 7, 8):
+                    val = struct.unpack_from('<Q', region_data, off)[0]
+                    if val in remaining:
+                        fn_name, stub_addr = targets[val]
+                        scan_addr = base + offset + off
                         old_prot = ctypes.c_uint32(0)
-                        PAGE_READWRITE = 0x04
                         ok = ctypes.windll.kernel32.VirtualProtect(
-                            ctypes.c_void_p(iat_entry_addr), ptr_size,
-                            PAGE_READWRITE, ctypes.byref(old_prot))
+                            ctypes.c_void_p(scan_addr), 8, PAGE_READWRITE,
+                            ctypes.byref(old_prot))
                         if ok:
-                            # from_address is safe here: address validated by
-                            # ReadProcessMemory above, and page is now writable.
-                            stub_addr = stub_for[fn_name]
-                            t = ctypes.c_uint64 if ptr_size == 8 else ctypes.c_uint32
-                            t.from_address(iat_entry_addr).value = stub_addr
+                            # from_address is safe here: page just made writable,
+                            # address verified by ReadProcessMemory above.
+                            ctypes.c_uint64.from_address(scan_addr).value = stub_addr
                             ctypes.windll.kernel32.VirtualProtect(
-                                ctypes.c_void_p(iat_entry_addr), ptr_size,
-                                old_prot, ctypes.byref(old_prot))
-                            _log.info("_fix_win_ole: patched %s at IAT 0x%x",
-                                      fn_name.decode(), iat_entry_addr)
-                            remaining.discard(fn_name)
+                                ctypes.c_void_p(scan_addr), 8, old_prot,
+                                ctypes.byref(old_prot))
+                            _log.info("_fix_win_ole: patched %s at Qt6Gui+0x%x",
+                                      fn_name, offset + off)
+                            remaining.discard(val)
                         else:
-                            _log.warning("_fix_win_ole: VirtualProtect failed for %s",
-                                         fn_name.decode())
-            idx += 1
+                            _log.warning("_fix_win_ole: VirtualProtect failed for %s", fn_name)
 
-        desc_rva += 20
+        offset += max(region, PAGE_SIZE)
 
-    if not found_ole32:
-        _log.warning("_fix_win_ole: ole32.dll not found in Qt6Gui.dll import table")
-
-    for fn_name in remaining:
-        _log.warning("_fix_win_ole: could NOT patch %s", fn_name.decode())
+    for real_addr in remaining:
+        fn_name, _ = targets[real_addr]
+        _log.warning("_fix_win_ole: could NOT find %s in Qt6Gui.dll IAT", fn_name)
 
     _log.info("_fix_win_ole: apply() done, remaining=%d", len(remaining))
