@@ -51,6 +51,13 @@ logging.info("app_dir=%s  meipass=%s", _app_dir, getattr(sys, "_MEIPASS", None))
 logging.info("PATH[0]=%s", os.environ["PATH"].split(os.pathsep)[0])
 logging.info("QT_QPA_PLATFORM=%s", os.environ.get("QT_QPA_PLATFORM"))
 
+# Pre-initialize OLE in STA mode before Qt does it, to avoid RegisterDragDrop
+# crash on machines where COM isn't set up correctly by the time Qt calls it.
+if sys.platform == "win32":
+    import ctypes
+    hr = ctypes.windll.ole32.OleInitialize(None)
+    logging.info("OleInitialize hr=0x%08x", hr & 0xFFFFFFFF)
+
 try:
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
