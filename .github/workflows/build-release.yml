@@ -124,7 +124,7 @@ jobs:
           Write-Host "Bundling DLLs:"
           Get-ChildItem bundle_dlls
 
-      - name: Build single EXE with PyInstaller
+      - name: Build app with PyInstaller (onedir)
         shell: pwsh
         run: |
           # Validate required DLLs are present before packaging
@@ -140,8 +140,10 @@ jobs:
           $binaryFlags = (Get-ChildItem bundle_dlls -Filter *.dll |
             ForEach-Object { "--add-binary `"bundle_dlls\$($_.Name);.`"" }) -join " "
 
+          # --onedir avoids extracting to %TEMP%, which causes COM/RegisterDragDrop
+          # crashes on some Win11 machines when code is loaded from a temp path.
           $cmd = "pyinstaller " +
-            "--onefile --windowed " +
+            "--onedir --windowed " +
             "--name WorldEngineDataCollector " +
             "--collect-all PyQt6 " +
             "--add-data `"control_center/gui;gui`" " +
@@ -154,18 +156,19 @@ jobs:
           Invoke-Expression $cmd
 
           # Confirm output
-          if (-not (Test-Path "dist\WorldEngineDataCollector.exe")) {
+          if (-not (Test-Path "dist\WorldEngineDataCollector\WorldEngineDataCollector.exe")) {
             Write-Error "EXE not produced"
             exit 1
           }
-          Write-Host "EXE size: $((Get-Item 'dist\WorldEngineDataCollector.exe').Length / 1MB) MB"
+          Write-Host "Build OK"
+          Compress-Archive -Path dist\WorldEngineDataCollector\* -DestinationPath dist\WorldEngineDataCollector.zip
 
       # ── 5. Upload artifact ────────────────────────────────────────────────
-      - name: Upload EXE artifact
+      - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
           name: WorldEngineDataCollector
-          path: dist\WorldEngineDataCollector.exe
+          path: dist\WorldEngineDataCollector.zip
 
       # ── 7. Package Cyberpunk 2077 CET mod ────────────────────────────────────
       - name: Package Cyberpunk 2077 CET mod
@@ -210,6 +213,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist\WorldEngineDataCollector.exe
+            dist\WorldEngineDataCollector.zip
             dist\WorldEngineCollector_CP2077.zip
             dist\WorldEngineCollector_Skyrim.zip
