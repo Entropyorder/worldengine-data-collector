@@ -64,10 +64,7 @@ except Exception:
     logging.critical("Import failed:\n%s", traceback.format_exc())
     raise
 
-# IAT-patch CoCreateFreeThreadedMarshaler + RegisterDragDrop in Qt6Gui.dll
-# MUST run after PyQt6 import (which loads Qt6Gui.dll) but before QApplication.
 import _fix_win_ole
-_fix_win_ole.apply()
 
 
 # ── Qt message handler: writes EVERY Qt message to disk with fsync ────────────
@@ -93,6 +90,11 @@ def main() -> None:
     app = QApplication(sys.argv)
     qInstallMessageHandler(_qt_log_handler)
     logging.info("QApplication OK")
+
+    # Patch AFTER QApplication so qwindows.dll (platform plugin) is loaded.
+    # qwindows.dll contains QWindowsOleDropTarget which calls these functions.
+    _fix_win_ole.apply()
+
     app.setApplicationName("WorldEngine Data Collector")
 
     logging.info("Creating SessionManager")
