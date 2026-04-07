@@ -230,6 +230,25 @@ def apply() -> None:
                 _log.warning("_fix_win_ole: GetProcAddress returned NULL for %s",
                              fn_name.decode())
                 continue
+
+            # Safety: only patch if the function looks already hooked by security software.
+            # Normal Windows function prologues don't start with E9 (JMP rel32),
+            # FF 25 (JMP [rip+offset]), or 68..C3 (PUSH addr;RET).
+            # On machines WITHOUT security software, leave the real function alone.
+            probe = _rpmem(proc, fn_ptr, 2)
+            if not probe:
+                _log.warning("_fix_win_ole: cannot probe %s @ 0x%x", fn_name.decode(), fn_ptr)
+                continue
+            is_hooked = (
+                probe[0] == 0xE9 or                          # JMP rel32
+                (probe[0] == 0xFF and probe[1] == 0x25) or  # JMP [rip+offset]
+                probe[0] == 0x68                             # PUSH imm32 (32-bit hook)
+            )
+            if not is_hooked:
+                _log.info("_fix_win_ole: %s @ 0x%x head=[0x%02x 0x%02x] — not hooked, skip",
+                          fn_name.decode(), fn_ptr, probe[0], probe[1])
+                remaining.discard(fn_name)
+                continue
             stub_addr = target_stubs[fn_name]
             patch = b'\x48\xB8' + struct.pack('<Q', stub_addr) + b'\xFF\xE0'
             old_prot = ctypes.c_uint32(0)
